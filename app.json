@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "cafetec-app",
+    "name": "Cafetec",
     "slug": "cafetec-app",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -25,6 +25,11 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "6f9795da-5f49-450a-b09e-413d3d8e11bb"
+      }
     }
   }
 }
