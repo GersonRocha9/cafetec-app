@@ -42,3 +42,6 @@ yarn-error.*
 
 # SQL
 src/sql
+
+android/
+ios/
