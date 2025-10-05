@@ -45,3 +45,5 @@ src/sql
 
 android/
 ios/
+
+.env
