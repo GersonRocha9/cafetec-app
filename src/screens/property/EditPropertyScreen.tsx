@@ -15,7 +15,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native'
-import MapView, { Marker, Region } from 'react-native-maps'
+import MapView, { Marker, PROVIDER_GOOGLE, Region } from 'react-native-maps'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { z } from 'zod'
 import { LoadingState } from '../../components'
@@ -592,6 +592,7 @@ export function EditPropertyScreen({ navigation, route }: Props) {
                 ref={mapRef}
                 style={styles.map}
                 region={mapRegion}
+                provider={PROVIDER_GOOGLE}
                 onPress={(e) => {
                   const coords = e.nativeEvent.coordinate
                   setMarkerCoordinate(coords)

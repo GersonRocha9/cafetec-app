@@ -14,7 +14,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native'
-import MapView, { Marker } from 'react-native-maps'
+import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { z } from 'zod'
 import { useAuth } from '../../contexts/AuthContext'
@@ -533,6 +533,7 @@ export function AddPropertyScreen({ navigation }: Props) {
                 latitudeDelta: 0.0922,
                 longitudeDelta: 0.0421,
               }}
+              provider={PROVIDER_GOOGLE}
               onPress={handleMapPress}
             >
               {selectedLocation && (
