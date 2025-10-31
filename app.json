@@ -14,7 +14,10 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.gersonrocha9.cafetecapp"
+      "bundleIdentifier": "com.gersonrocha9.cafetecapp",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "config": {
