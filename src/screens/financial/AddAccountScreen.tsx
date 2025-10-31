@@ -19,6 +19,14 @@ import { z } from 'zod'
 import { useProperty } from '../../contexts/PropertyContext'
 import { useCreateAccount } from '../../hooks'
 import { PropertyStackParamList } from '../../types/navigation'
+import {
+  applyCurrencyMask,
+  applyDateMask,
+  dateToISO,
+  isDateInValidRange,
+  isValidDate,
+  removeCurrencyMask,
+} from '../../utils/masks'
 
 // Categorias predefinidas
 const EXPENSE_CATEGORIES = [
@@ -44,18 +52,33 @@ const INCOME_CATEGORIES = [
 const accountSchema = z.object({
   description: z
     .string({ required_error: 'Descrição é obrigatória' })
-    .min(3, 'Descrição deve ter no mínimo 3 caracteres'),
+    .min(3, 'Descrição deve ter no mínimo 3 caracteres')
+    .max(200, 'Descrição muito longa (máximo 200 caracteres)'),
   value: z
     .string({ required_error: 'Valor é obrigatório' })
     .min(1, 'Valor é obrigatório')
-    .regex(/^\d+([.,]\d{1,2})?$/, 'Valor inválido'),
+    .refine(val => {
+      const num = removeCurrencyMask(val)
+      return num > 0
+    }, 'Valor deve ser maior que zero')
+    .refine(val => {
+      const num = removeCurrencyMask(val)
+      return num <= 999999999.99
+    }, 'Valor muito alto (máximo: R$ 999.999.999,99)'),
   dueDate: z
     .string({ required_error: 'Data de vencimento é obrigatória' })
-    .min(1, 'Data de vencimento é obrigatória'),
+    .refine(val => isValidDate(val), 'Data inválida (use DD/MM/AAAA)')
+    .refine(
+      val => isDateInValidRange(val),
+      'Data fora do intervalo permitido (1 ano atrás até 2 anos à frente)'
+    ),
   category: z
     .string({ required_error: 'Categoria é obrigatória' })
     .min(2, 'Categoria é obrigatória'),
-  notes: z.string().optional(),
+  notes: z
+    .string()
+    .max(500, 'Observações muito longas (máximo 500 caracteres)')
+    .optional(),
 })
 
 type AccountFormData = z.infer<typeof accountSchema>
@@ -92,25 +115,21 @@ export function AddAccountScreen({ navigation }: Props) {
         return
       }
 
-      // Converter valor para número
-      const valueNumber = parseFloat(data.value.replace(',', '.'))
+      // Converter valor usando função de remoção de máscara
+      const valueNumber = removeCurrencyMask(data.value)
 
-      // Converter data DD/MM/AAAA para YYYY-MM-DD
-      const [day, month, year] = data.dueDate.split('/')
-      const dateISO = `${year}-${month.padStart(2, '0')}-${day.padStart(
-        2,
-        '0'
-      )}`
+      // Converter data DD/MM/AAAA para YYYY-MM-DD usando função utilitária
+      const dateISO = dateToISO(data.dueDate)
 
       await createAccountMutation.mutateAsync({
         property_id: selectedProperty.id,
-        description: data.description,
+        description: data.description.trim(),
         value: valueNumber,
         due_date: dateISO,
         category: data.category,
-        notes: data.notes || null,
+        notes: data.notes?.trim() || null,
         type: isReceivable ? 'Recebível' : 'Pagável',
-        status: 'Pendente', // Status padrão (ou deixe undefined para usar o default do banco)
+        status: 'Pendente',
       })
 
       Alert.alert(
@@ -202,9 +221,9 @@ export function AddAccountScreen({ navigation }: Props) {
                     style={[styles.input, errors.value && styles.inputError]}
                     placeholder="0,00"
                     value={value}
-                    onChangeText={onChange}
+                    onChangeText={text => onChange(applyCurrencyMask(text))}
                     onBlur={onBlur}
-                    keyboardType="decimal-pad"
+                    keyboardType="numeric"
                     editable={!isSubmitting}
                   />
                 )}
@@ -224,9 +243,10 @@ export function AddAccountScreen({ navigation }: Props) {
                     style={[styles.input, errors.dueDate && styles.inputError]}
                     placeholder="DD/MM/AAAA"
                     value={value}
-                    onChangeText={onChange}
+                    onChangeText={text => onChange(applyDateMask(text))}
                     onBlur={onBlur}
                     keyboardType="numeric"
+                    maxLength={10}
                     editable={!isSubmitting}
                   />
                 )}
@@ -333,10 +353,14 @@ export function AddAccountScreen({ navigation }: Props) {
                     multiline
                     numberOfLines={4}
                     textAlignVertical="top"
+                    maxLength={500}
                     editable={!isSubmitting}
                   />
                 )}
               />
+              {errors.notes && (
+                <Text style={styles.errorText}>{errors.notes.message}</Text>
+              )}
             </View>
           </View>
 

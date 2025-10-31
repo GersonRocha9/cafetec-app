@@ -20,11 +20,16 @@ import { PropertyStackParamList } from '../../types/navigation'
 const coffeeSchema = z.object({
   name: z
     .string({ required_error: 'Nome é obrigatório' })
-    .min(3, 'Nome deve ter no mínimo 3 caracteres'),
+    .min(3, 'Nome deve ter no mínimo 3 caracteres')
+    .max(100, 'Nome muito longo (máximo 100 caracteres)'),
   variety: z
     .string({ required_error: 'Variedade é obrigatória' })
-    .min(3, 'Variedade deve ter no mínimo 3 caracteres'),
-  description: z.string().optional(),
+    .min(3, 'Variedade deve ter no mínimo 3 caracteres')
+    .max(100, 'Variedade muito longa (máximo 100 caracteres)'),
+  description: z
+    .string()
+    .max(500, 'Descrição muito longa (máximo 500 caracteres)')
+    .optional(),
 })
 
 type CoffeeFormData = z.infer<typeof coffeeSchema>
@@ -57,9 +62,9 @@ export function AddCoffeeScreen({ navigation }: Props) {
 
       await createCoffeeMutation.mutateAsync({
         property_id: selectedProperty.id,
-        name: data.name,
-        variety: data.variety,
-        description: data.description || null,
+        name: data.name.trim(),
+        variety: data.variety.trim(),
+        description: data.description?.trim() || null,
       })
 
       Alert.alert('Sucesso', 'Tipo de café cadastrado com sucesso!', [
@@ -93,6 +98,7 @@ export function AddCoffeeScreen({ navigation }: Props) {
                   value={value}
                   onChangeText={onChange}
                   onBlur={onBlur}
+                  maxLength={100}
                   editable={!isSubmitting}
                 />
               )}
@@ -114,6 +120,7 @@ export function AddCoffeeScreen({ navigation }: Props) {
                   value={value}
                   onChangeText={onChange}
                   onBlur={onBlur}
+                  maxLength={100}
                   editable={!isSubmitting}
                 />
               )}
@@ -138,10 +145,14 @@ export function AddCoffeeScreen({ navigation }: Props) {
                   multiline
                   numberOfLines={4}
                   textAlignVertical="top"
+                  maxLength={500}
                   editable={!isSubmitting}
                 />
               )}
             />
+            {errors.description && (
+              <Text style={styles.errorText}>{errors.description.message}</Text>
+            )}
           </View>
         </View>
 

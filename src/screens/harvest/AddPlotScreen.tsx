@@ -17,6 +17,11 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { z } from 'zod'
 import { useCreatePlot } from '../../hooks'
 import { PropertyStackParamList } from '../../types/navigation'
+import {
+  applyDecimalMask,
+  applyIntegerMask,
+  removeDecimalMask,
+} from '../../utils/masks'
 
 // Status válidos do banco de dados
 const PLOT_STATUS = [
@@ -31,22 +36,42 @@ const PLOT_STATUS = [
 const plotSchema = z.object({
   name: z
     .string({ required_error: 'Nome é obrigatório' })
-    .min(3, 'Nome deve ter no mínimo 3 caracteres'),
+    .min(3, 'Nome deve ter no mínimo 3 caracteres')
+    .max(100, 'Nome muito longo (máximo 100 caracteres)'),
   area: z
     .string({ required_error: 'Área é obrigatória' })
     .min(1, 'Área é obrigatória')
-    .regex(/^\d+([.,]\d{1,2})?$/, 'Área inválida'),
+    .refine(val => {
+      const num = removeDecimalMask(val)
+      return !isNaN(num) && num > 0
+    }, 'Área deve ser maior que zero')
+    .refine(val => {
+      const num = removeDecimalMask(val)
+      return num <= 999999.99
+    }, 'Área muito grande (máximo: 999.999,99 ha)'),
   soilType: z
     .string({ required_error: 'Tipo de solo é obrigatório' })
-    .min(3, 'Tipo de solo deve ter no mínimo 3 caracteres'),
+    .min(3, 'Tipo de solo deve ter no mínimo 3 caracteres')
+    .max(100, 'Tipo de solo muito longo (máximo 100 caracteres)'),
   plantCount: z
     .string({ required_error: 'Número de plantios é obrigatório' })
     .min(1, 'Número de plantios é obrigatório')
-    .regex(/^\d+$/, 'Deve ser um número válido'),
+    .refine(val => /^\d+$/.test(val), 'Deve ser um número válido')
+    .refine(val => {
+      const num = parseInt(val, 10)
+      return num > 0
+    }, 'Número de plantios deve ser maior que zero')
+    .refine(val => {
+      const num = parseInt(val, 10)
+      return num <= 999999999
+    }, 'Número de plantios muito alto (máximo: 999.999.999)'),
   status: z.enum(PLOT_STATUS, {
     required_error: 'Status é obrigatório',
   }),
-  description: z.string().optional(),
+  description: z
+    .string()
+    .max(500, 'Descrição muito longa (máximo 500 caracteres)')
+    .optional(),
 })
 
 type PlotFormData = z.infer<typeof plotSchema>
@@ -76,17 +101,17 @@ export function AddPlotScreen({ route, navigation }: Props) {
 
   const onSubmit = async (data: PlotFormData) => {
     try {
-      // Converter valores para números
-      const areaValue = parseFloat(data.area.replace(',', '.'))
+      // Converter valores usando funções utilitárias
+      const areaValue = removeDecimalMask(data.area)
       const plantingsValue = parseInt(data.plantCount, 10)
 
       await createPlotMutation.mutateAsync({
         coffee_id: coffeeId,
-        name: data.name,
+        name: data.name.trim(),
         area: areaValue,
-        soil_type: data.soilType,
+        soil_type: data.soilType.trim(),
         plantings: plantingsValue,
-        description: data.description || null,
+        description: data.description?.trim() || null,
         status: data.status,
       })
 
@@ -122,6 +147,7 @@ export function AddPlotScreen({ route, navigation }: Props) {
                     value={value}
                     onChangeText={onChange}
                     onBlur={onBlur}
+                    maxLength={100}
                     editable={!isSubmitting}
                   />
                 )}
@@ -141,9 +167,9 @@ export function AddPlotScreen({ route, navigation }: Props) {
                     style={[styles.input, errors.area && styles.inputError]}
                     placeholder="0,00"
                     value={value}
-                    onChangeText={onChange}
+                    onChangeText={text => onChange(applyDecimalMask(text))}
                     onBlur={onBlur}
-                    keyboardType="decimal-pad"
+                    keyboardType="numeric"
                     editable={!isSubmitting}
                   />
                 )}
@@ -165,6 +191,7 @@ export function AddPlotScreen({ route, navigation }: Props) {
                     value={value}
                     onChangeText={onChange}
                     onBlur={onBlur}
+                    maxLength={100}
                     editable={!isSubmitting}
                   />
                 )}
@@ -187,9 +214,10 @@ export function AddPlotScreen({ route, navigation }: Props) {
                     ]}
                     placeholder="0"
                     value={value}
-                    onChangeText={onChange}
+                    onChangeText={text => onChange(applyIntegerMask(text))}
                     onBlur={onBlur}
                     keyboardType="numeric"
+                    maxLength={9}
                     editable={!isSubmitting}
                   />
                 )}
@@ -284,10 +312,16 @@ export function AddPlotScreen({ route, navigation }: Props) {
                     multiline
                     numberOfLines={4}
                     textAlignVertical="top"
+                    maxLength={500}
                     editable={!isSubmitting}
                   />
                 )}
               />
+              {errors.description && (
+                <Text style={styles.errorText}>
+                  {errors.description.message}
+                </Text>
+              )}
             </View>
           </View>
 
