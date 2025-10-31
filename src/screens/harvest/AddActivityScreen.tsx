@@ -15,18 +15,30 @@ import {
 import { z } from 'zod'
 import { useCreateActivity } from '../../hooks'
 import { PropertyStackParamList } from '../../types/navigation'
+import {
+  applyDateMask,
+  dateToISO,
+  isNotFutureDate,
+  isValidDate,
+} from '../../utils/masks'
 
 const activitySchema = z.object({
   type: z
     .string({ required_error: 'Tipo de atividade é obrigatório' })
-    .min(3, 'Tipo deve ter no mínimo 3 caracteres'),
+    .min(3, 'Tipo deve ter no mínimo 3 caracteres')
+    .max(100, 'Tipo muito longo (máximo 100 caracteres)'),
   date: z
     .string({ required_error: 'Data é obrigatória' })
-    .min(1, 'Data é obrigatória'),
+    .refine(val => isValidDate(val), 'Data inválida (use DD/MM/AAAA)')
+    .refine(val => isNotFutureDate(val), 'Atividade não pode ser no futuro'),
   responsible: z
     .string({ required_error: 'Responsável é obrigatório' })
-    .min(3, 'Nome do responsável deve ter no mínimo 3 caracteres'),
-  notes: z.string().optional(),
+    .min(3, 'Nome do responsável deve ter no mínimo 3 caracteres')
+    .max(100, 'Nome muito longo (máximo 100 caracteres)'),
+  notes: z
+    .string()
+    .max(500, 'Observações muito longas (máximo 500 caracteres)')
+    .optional(),
 })
 
 type ActivityFormData = z.infer<typeof activitySchema>
@@ -53,19 +65,15 @@ export function AddActivityScreen({ route, navigation }: Props) {
 
   const onSubmit = async (data: ActivityFormData) => {
     try {
-      // Converter data DD/MM/AAAA para YYYY-MM-DD
-      const [day, month, year] = data.date.split('/')
-      const dateISO = `${year}-${month.padStart(2, '0')}-${day.padStart(
-        2,
-        '0'
-      )}`
+      // Converter data DD/MM/AAAA para YYYY-MM-DD usando função utilitária
+      const dateISO = dateToISO(data.date)
 
       await createActivityMutation.mutateAsync({
         plot_id: plotId,
-        type: data.type,
+        type: data.type.trim(),
         date: dateISO,
-        responsible: data.responsible,
-        notes: data.notes || null,
+        responsible: data.responsible.trim(),
+        notes: data.notes?.trim() || null,
       })
 
       Alert.alert('Sucesso', 'Atividade cadastrada com sucesso!', [
@@ -99,6 +107,7 @@ export function AddActivityScreen({ route, navigation }: Props) {
                   value={value}
                   onChangeText={onChange}
                   onBlur={onBlur}
+                  maxLength={100}
                   editable={!isSubmitting}
                 />
               )}
@@ -118,9 +127,10 @@ export function AddActivityScreen({ route, navigation }: Props) {
                   style={[styles.input, errors.date && styles.inputError]}
                   placeholder="DD/MM/AAAA"
                   value={value}
-                  onChangeText={onChange}
+                  onChangeText={text => onChange(applyDateMask(text))}
                   onBlur={onBlur}
                   keyboardType="numeric"
+                  maxLength={10}
                   editable={!isSubmitting}
                 />
               )}
@@ -145,6 +155,7 @@ export function AddActivityScreen({ route, navigation }: Props) {
                   value={value}
                   onChangeText={onChange}
                   onBlur={onBlur}
+                  maxLength={100}
                   editable={!isSubmitting}
                 />
               )}
@@ -169,10 +180,14 @@ export function AddActivityScreen({ route, navigation }: Props) {
                   multiline
                   numberOfLines={4}
                   textAlignVertical="top"
+                  maxLength={500}
                   editable={!isSubmitting}
                 />
               )}
             />
+            {errors.notes && (
+              <Text style={styles.errorText}>{errors.notes.message}</Text>
+            )}
           </View>
         </View>
 
