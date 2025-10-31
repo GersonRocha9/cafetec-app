@@ -8,12 +8,12 @@ export interface WeatherData {
     lon: number
     lat: number
   }
-  weather: Array<{
+  weather: {
     id: number
     main: string
     description: string
     icon: string
-  }>
+  }[]
   main: {
     temp: number
     feels_like: number

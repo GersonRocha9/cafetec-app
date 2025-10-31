@@ -232,7 +232,7 @@ export function AddPlotScreen({ route, navigation }: Props) {
                           <Text style={styles.modalTitle}>
                             Selecione o Status
                           </Text>
-                          {PLOT_STATUS.map((status) => (
+                          {PLOT_STATUS.map(status => (
                             <TouchableOpacity
                               key={status}
                               style={[

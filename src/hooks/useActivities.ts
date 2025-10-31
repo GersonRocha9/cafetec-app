@@ -34,7 +34,7 @@ export const useCreateActivity = () => {
   return useMutation({
     mutationFn: (activity: ActivityInsert) =>
       activityService.createActivity(activity),
-    onSuccess: (data) => {
+    onSuccess: data => {
       queryClient.invalidateQueries({
         queryKey: queryKeys.activities.byPlot(data.plot_id),
       })
@@ -55,7 +55,7 @@ export const useUpdateActivity = () => {
       activityId: string
       updates: ActivityUpdate
     }) => activityService.updateActivity(activityId, updates),
-    onSuccess: (data) => {
+    onSuccess: data => {
       queryClient.invalidateQueries({
         queryKey: queryKeys.activities.detail(data.id),
       })

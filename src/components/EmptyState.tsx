@@ -3,6 +3,7 @@
 // =====================================================
 import React from 'react'
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native'
+import { colors, spacing, borderRadius, shadows } from '../constants/theme'
 
 interface EmptyStateProps {
   icon?: string
@@ -21,12 +22,21 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
 }) => {
   return (
     <View style={styles.container}>
-      <Text style={styles.icon}>{icon}</Text>
+      <View style={styles.iconContainer}>
+        <Text style={styles.icon}>{icon}</Text>
+      </View>
       <Text style={styles.title}>{title}</Text>
       <Text style={styles.description}>{description}</Text>
       {actionLabel && onAction && (
-        <TouchableOpacity style={styles.button} onPress={onAction}>
-          <Text style={styles.buttonText}>{actionLabel}</Text>
+        <TouchableOpacity
+          style={[styles.buttonWrapper, shadows.base]}
+          onPress={onAction}
+          activeOpacity={0.8}
+        >
+          <View style={styles.button}>
+            <Text style={styles.buttonText}>{actionLabel}</Text>
+            <Text style={styles.buttonIcon}>→</Text>
+          </View>
         </TouchableOpacity>
       )}
     </View>
@@ -38,37 +48,56 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 32,
-    paddingVertical: 48,
+    paddingHorizontal: spacing['2xl'],
+    paddingVertical: spacing['4xl'],
+  },
+  iconContainer: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: colors.neutral.lighter,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: spacing.lg,
   },
   icon: {
     fontSize: 64,
-    marginBottom: 16,
   },
   title: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#1a1a1a',
-    marginBottom: 8,
+    fontSize: 22,
+    fontWeight: '700',
+    color: colors.text.primary,
+    marginBottom: spacing.sm,
     textAlign: 'center',
   },
   description: {
-    fontSize: 14,
-    color: '#666',
+    fontSize: 15,
+    color: colors.text.secondary,
     textAlign: 'center',
-    lineHeight: 20,
-    marginBottom: 24,
+    lineHeight: 22,
+    marginBottom: spacing.xl,
+    maxWidth: 320,
+  },
+  buttonWrapper: {
+    borderRadius: borderRadius.base,
   },
   button: {
-    backgroundColor: '#8B4513',
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.md,
+    borderRadius: borderRadius.base,
+    gap: spacing.xs,
+    backgroundColor: colors.primary.main,
   },
   buttonText: {
-    color: '#fff',
+    color: colors.text.inverse,
     fontSize: 16,
     fontWeight: '600',
   },
+  buttonIcon: {
+    color: colors.text.inverse,
+    fontSize: 18,
+    fontWeight: '600',
+  },
 })
-

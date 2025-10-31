@@ -47,7 +47,7 @@ export const useCreatePlot = () => {
 
   return useMutation({
     mutationFn: (plot: PlotInsert) => plotService.createPlot(plot),
-    onSuccess: (data) => {
+    onSuccess: data => {
       queryClient.invalidateQueries({
         queryKey: queryKeys.plots.byCoffee(data.coffee_id),
       })
@@ -68,7 +68,7 @@ export const useUpdatePlot = () => {
       plotId: string
       updates: PlotUpdate
     }) => plotService.updatePlot(plotId, updates),
-    onSuccess: (data) => {
+    onSuccess: data => {
       queryClient.invalidateQueries({
         queryKey: queryKeys.plots.detail(data.id),
       })

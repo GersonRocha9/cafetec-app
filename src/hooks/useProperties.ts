@@ -34,7 +34,7 @@ export const useCreateProperty = () => {
   return useMutation({
     mutationFn: (property: PropertyInsert) =>
       propertyService.createProperty(property),
-    onSuccess: (data) => {
+    onSuccess: data => {
       queryClient.invalidateQueries({
         queryKey: queryKeys.properties.byUser(data.user_id),
       })
@@ -54,7 +54,7 @@ export const useUpdateProperty = () => {
       propertyId: string
       updates: PropertyUpdate
     }) => propertyService.updateProperty(propertyId, updates),
-    onSuccess: (data) => {
+    onSuccess: data => {
       queryClient.invalidateQueries({
         queryKey: queryKeys.properties.detail(data.id),
       })

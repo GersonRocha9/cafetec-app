@@ -1,9 +1,10 @@
 import { BottomTabScreenProps } from '@react-navigation/bottom-tabs'
 import { CompositeScreenProps } from '@react-navigation/native'
 import { NativeStackScreenProps } from '@react-navigation/native-stack'
-import React, { useMemo } from 'react'
+import React, { useCallback, useMemo } from 'react'
 import {
   Alert,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -11,7 +12,13 @@ import {
   View,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { ErrorState, LoadingState } from '../../components'
+import {
+  ErrorState,
+  LoadingState,
+  Card,
+  CardHeader,
+  CardContent,
+} from '../../components'
 import { useProperty } from '../../contexts/PropertyContext'
 import {
   useAccounts,
@@ -23,6 +30,7 @@ import {
   PropertyStackParamList,
   PropertyTabsParamList,
 } from '../../types/navigation'
+import { colors, spacing, borderRadius, shadows } from '../../constants/theme'
 
 type Props = CompositeScreenProps<
   BottomTabScreenProps<PropertyTabsParamList, 'Financial'>,
@@ -51,26 +59,38 @@ export function FinancialScreen({ navigation }: Props) {
     data: accounts = [],
     isLoading: accountsLoading,
     error: accountsError,
+    refetch: refetchAccounts,
   } = useAccounts(selectedProperty?.id)
 
-  // Contas recentes (últimas 5 contas pendentes)
+  // Pull to refresh
+  const [refreshing, setRefreshing] = React.useState(false)
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true)
+    try {
+      await Promise.all([refetchSummary(), refetchAccounts()])
+    } finally {
+      setRefreshing(false)
+    }
+  }, [refetchSummary, refetchAccounts])
+
+  // Contas recentes (últimas 5 contas pendentes, ordenadas por vencimento mais próximo)
   const recentAccounts = useMemo(() => {
     return accounts
-      .filter((acc) => acc.status === 'Pendente')
+      .filter(acc => acc.status === 'Pendente')
       .sort(
         (a, b) =>
-          new Date(b.due_date).getTime() - new Date(a.due_date).getTime()
+          new Date(a.due_date).getTime() - new Date(b.due_date).getTime()
       )
       .slice(0, 5)
   }, [accounts])
 
   // Calcular categorias de gastos a partir das contas "Pagável"
   const expenseCategories = useMemo(() => {
-    const payableAccounts = accounts.filter((acc) => acc.type === 'Pagável')
+    const payableAccounts = accounts.filter(acc => acc.type === 'Pagável')
     const categoryMap = new Map<string, number>()
     let total = 0
 
-    payableAccounts.forEach((account) => {
+    payableAccounts.forEach(account => {
       const category = account.category || 'Outros'
       const value = Number(account.value) || 0
       categoryMap.set(category, (categoryMap.get(category) || 0) + value)
@@ -101,19 +121,6 @@ export function FinancialScreen({ navigation }: Props) {
       month: '2-digit',
       year: 'numeric',
     }).format(date)
-  }
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'Pago':
-        return '#22C55E'
-      case 'Pendente':
-        return '#F59E0B'
-      case 'Vencido':
-        return '#EF4444'
-      default:
-        return '#999'
-    }
   }
 
   const handleMarkAsPaid = (accountId: string, accountValue: number) => {
@@ -178,182 +185,201 @@ export function FinancialScreen({ navigation }: Props) {
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[colors.primary.main]}
+            tintColor={colors.primary.main}
+          />
+        }
+      >
         <View style={styles.header}>
-          <Text style={styles.title}>Financeiro</Text>
-          <Text style={styles.subtitle}>Visão Geral Financeira</Text>
+          <View>
+            <Text style={styles.title}>Financeiro</Text>
+            <Text style={styles.subtitle}>Visão Geral Financeira</Text>
+          </View>
+          <TouchableOpacity
+            style={styles.addButton}
+            onPress={() => navigation.navigate('AddAccount')}
+          >
+            <Text style={styles.addButtonText}>+</Text>
+          </TouchableOpacity>
         </View>
 
-        {/* Fluxo de Caixa */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>💰 Fluxo de Caixa</Text>
-          <View style={styles.cardContent}>
-            <View style={styles.cashFlowRow}>
-              <Text style={styles.cashFlowLabel}>Saldo Atual</Text>
-              <Text
-                style={[
-                  styles.cashFlowValue,
-                  balance >= 0 ? styles.balancePositive : styles.toPay,
-                ]}
-              >
-                {formatCurrency(balance)}
-              </Text>
-            </View>
-            <View style={styles.divider} />
-            <View style={styles.cashFlowRow}>
-              <Text style={styles.cashFlowLabel}>A Receber</Text>
-              <Text style={[styles.cashFlowValue, styles.toReceive]}>
-                {formatCurrency(toReceive)}
-              </Text>
-            </View>
-            <View style={styles.divider} />
-            <View style={styles.cashFlowRow}>
-              <Text style={styles.cashFlowLabel}>A Pagar</Text>
-              <Text style={[styles.cashFlowValue, styles.toPay]}>
-                {formatCurrency(toPay)}
-              </Text>
-            </View>
+        {/* Cards de Resumo Rápido */}
+        <View style={styles.summaryRow}>
+          <View
+            style={[
+              styles.summaryCard,
+              { backgroundColor: balance >= 0 ? colors.success : colors.error },
+            ]}
+          >
+            <Text style={styles.summaryIcon}>💰</Text>
+            <Text style={styles.summaryLabel}>Saldo</Text>
+            <Text style={styles.summaryValue}>{formatCurrency(balance)}</Text>
+          </View>
+          <View style={[styles.summaryCard, { backgroundColor: colors.info }]}>
+            <Text style={styles.summaryIcon}>📈</Text>
+            <Text style={styles.summaryLabel}>A Receber</Text>
+            <Text style={styles.summaryValue}>{formatCurrency(toReceive)}</Text>
+          </View>
+          <View
+            style={[styles.summaryCard, { backgroundColor: colors.warning }]}
+          >
+            <Text style={styles.summaryIcon}>📉</Text>
+            <Text style={styles.summaryLabel}>A Pagar</Text>
+            <Text style={styles.summaryValue}>{formatCurrency(toPay)}</Text>
           </View>
         </View>
 
         {/* Principais Clientes */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>
-            👥 Principais Clientes (Último Ano)
-          </Text>
-          {topClients.length === 0 ? (
-            <View style={{ padding: 16, alignItems: 'center' }}>
-              <Text style={{ color: '#999', fontSize: 14 }}>
-                Nenhum cliente cadastrado
-              </Text>
-            </View>
-          ) : (
-            <View style={styles.clientsList}>
-              {topClients.map((client, index) => (
-                <View key={client.client_id}>
-                  <View style={styles.clientRow}>
-                    <View style={styles.clientInfo}>
-                      <View style={styles.clientRank}>
-                        <Text style={styles.clientRankText}>{index + 1}º</Text>
+        <Card variant="elevated" style={styles.mainCard}>
+          <CardHeader
+            title="Principais Clientes"
+            subtitle="Último ano"
+            icon="👥"
+          />
+          <CardContent>
+            {topClients.length === 0 ? (
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyText}>Nenhum cliente cadastrado</Text>
+              </View>
+            ) : (
+              <View style={styles.clientsList}>
+                {topClients.map((client, index) => (
+                  <View key={client.client_id}>
+                    <View style={styles.clientRow}>
+                      <View style={styles.clientInfo}>
+                        <View style={styles.clientRank}>
+                          <Text style={styles.clientRankText}>
+                            {index + 1}º
+                          </Text>
+                        </View>
+                        <Text style={styles.clientName}>
+                          {client.client_name}
+                        </Text>
                       </View>
-                      <Text style={styles.clientName}>
-                        {client.client_name}
+                      <Text style={styles.clientValue}>
+                        {formatCurrency(Number(client.total_sales) || 0)}
                       </Text>
                     </View>
-                    <Text style={styles.clientValue}>
-                      {formatCurrency(Number(client.total_sales) || 0)}
-                    </Text>
+                    {index < topClients.length - 1 && (
+                      <View style={styles.divider} />
+                    )}
                   </View>
-                  {index < topClients.length - 1 && (
-                    <View style={styles.divider} />
-                  )}
-                </View>
-              ))}
-            </View>
-          )}
-        </View>
+                ))}
+              </View>
+            )}
+          </CardContent>
+        </Card>
 
         {/* Categorias de Gastos */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>
-            📊 Principais Gastos (Por Categoria)
-          </Text>
-          {expenseCategories.length === 0 ? (
-            <View style={{ padding: 16, alignItems: 'center' }}>
-              <Text style={{ color: '#999', fontSize: 14 }}>
-                Nenhuma conta de despesa cadastrada
-              </Text>
-            </View>
-          ) : (
-            <View style={styles.expensesList}>
-              {expenseCategories.map((category, index) => (
-                <View key={category.name}>
-                  <View style={styles.expenseRow}>
-                    <View style={styles.expenseInfo}>
-                      <Text style={styles.expenseName}>{category.name}</Text>
-                      <View style={styles.progressBar}>
-                        <View
-                          style={[
-                            styles.progressFill,
-                            { width: `${category.percentage}%` },
-                          ]}
-                        />
-                      </View>
-                    </View>
-                    <View style={styles.expenseValues}>
-                      <Text style={styles.expenseValue}>
-                        {formatCurrency(category.value)}
-                      </Text>
-                      <Text style={styles.expensePercentage}>
-                        {category.percentage.toFixed(1)}%
-                      </Text>
-                    </View>
-                  </View>
-                  {index < expenseCategories.length - 1 && (
-                    <View style={styles.divider} />
-                  )}
-                </View>
-              ))}
-            </View>
-          )}
-        </View>
-
-        {/* Contas Recentes */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>📋 Contas Pendentes Recentes</Text>
-          {recentAccounts.length === 0 ? (
-            <View style={{ padding: 16, alignItems: 'center' }}>
-              <Text style={{ color: '#999', fontSize: 14 }}>
-                Nenhuma conta pendente
-              </Text>
-            </View>
-          ) : (
-            <View style={styles.accountsList}>
-              {recentAccounts.map((account, index) => (
-                <View key={account.id}>
-                  <View style={styles.accountCard}>
-                    <View style={styles.accountHeader}>
-                      <View style={styles.accountHeaderLeft}>
-                        <Text style={styles.accountDescription}>
-                          {account.description}
-                        </Text>
-                        <View style={styles.accountMeta}>
+        <Card variant="elevated" style={styles.mainCard}>
+          <CardHeader
+            title="Principais Gastos"
+            subtitle="Por categoria"
+            icon="📊"
+          />
+          <CardContent>
+            {expenseCategories.length === 0 ? (
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyText}>Nenhuma despesa cadastrada</Text>
+              </View>
+            ) : (
+              <View style={styles.expensesList}>
+                {expenseCategories.map((category, index) => (
+                  <View key={category.name}>
+                    <View style={styles.expenseRow}>
+                      <View style={styles.expenseInfo}>
+                        <Text style={styles.expenseName}>{category.name}</Text>
+                        <View style={styles.progressBar}>
                           <View
                             style={[
-                              styles.accountTypeBadge,
-                              account.type === 'Recebível'
-                                ? styles.typeBadgeReceivable
-                                : styles.typeBadgePayable,
+                              styles.progressFill,
+                              { width: `${category.percentage}%` },
                             ]}
-                          >
-                            <Text
+                          />
+                        </View>
+                      </View>
+                      <View style={styles.expenseValues}>
+                        <Text style={styles.expenseValue}>
+                          {formatCurrency(category.value)}
+                        </Text>
+                        <Text style={styles.expensePercentage}>
+                          {category.percentage.toFixed(1)}%
+                        </Text>
+                      </View>
+                    </View>
+                    {index < expenseCategories.length - 1 && (
+                      <View style={styles.divider} />
+                    )}
+                  </View>
+                ))}
+              </View>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Contas Recentes */}
+        <Card variant="elevated" style={styles.mainCard}>
+          <CardHeader
+            title="Contas Pendentes"
+            subtitle="Próximos vencimentos"
+            icon="📋"
+          />
+          <CardContent>
+            {recentAccounts.length === 0 ? (
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyText}>Nenhuma conta pendente</Text>
+              </View>
+            ) : (
+              <View style={styles.accountsList}>
+                {recentAccounts.map((account, index) => (
+                  <View key={account.id}>
+                    <View style={styles.accountCard}>
+                      <View style={styles.accountHeader}>
+                        <View style={styles.accountHeaderLeft}>
+                          <Text style={styles.accountDescription}>
+                            {account.description}
+                          </Text>
+                          <View style={styles.accountMeta}>
+                            <View
                               style={[
-                                styles.accountTypeBadgeText,
+                                styles.accountTypeBadge,
                                 account.type === 'Recebível'
-                                  ? styles.typeBadgeTextReceivable
-                                  : styles.typeBadgeTextPayable,
+                                  ? styles.typeBadgeReceivable
+                                  : styles.typeBadgePayable,
                               ]}
                             >
-                              {account.type}
+                              <Text
+                                style={[
+                                  styles.accountTypeBadgeText,
+                                  account.type === 'Recebível'
+                                    ? styles.typeBadgeTextReceivable
+                                    : styles.typeBadgeTextPayable,
+                                ]}
+                              >
+                                {account.type}
+                              </Text>
+                            </View>
+                            <Text style={styles.accountCategory}>
+                              {account.category}
                             </Text>
                           </View>
-                          <Text style={styles.accountCategory}>
-                            {account.category}
+                        </View>
+                        <View style={styles.accountHeaderRight}>
+                          <Text style={styles.accountValue}>
+                            {formatCurrency(Number(account.value))}
+                          </Text>
+                          <Text style={styles.accountDueDate}>
+                            {formatDate(account.due_date)}
                           </Text>
                         </View>
                       </View>
-                      <View style={styles.accountHeaderRight}>
-                        <Text style={styles.accountValue}>
-                          {formatCurrency(Number(account.value))}
-                        </Text>
-                        <Text style={styles.accountDueDate}>
-                          Venc: {formatDate(account.due_date)}
-                        </Text>
-                      </View>
-                    </View>
 
-                    {/* Actions */}
-                    <View style={styles.accountActions}>
                       <TouchableOpacity
                         style={styles.actionButton}
                         onPress={() =>
@@ -366,24 +392,16 @@ export function FinancialScreen({ navigation }: Props) {
                         </Text>
                       </TouchableOpacity>
                     </View>
+                    {index < recentAccounts.length - 1 && (
+                      <View style={styles.divider} />
+                    )}
                   </View>
-                  {index < recentAccounts.length - 1 && (
-                    <View style={styles.divider} />
-                  )}
-                </View>
-              ))}
-            </View>
-          )}
-        </View>
+                ))}
+              </View>
+            )}
+          </CardContent>
+        </Card>
       </ScrollView>
-
-      {/* Floating Action Button */}
-      <TouchableOpacity
-        style={styles.fab}
-        onPress={() => navigation.navigate('AddAccount')}
-      >
-        <Text style={styles.fabIcon}>+</Text>
-      </TouchableOpacity>
     </SafeAreaView>
   )
 }
@@ -391,144 +409,159 @@ export function FinancialScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f9f9f9',
+    backgroundColor: colors.background.primary,
   },
   scrollContent: {
-    paddingBottom: 100,
+    paddingBottom: spacing['3xl'],
   },
   header: {
-    padding: 20,
-    paddingBottom: 30,
-    backgroundColor: '#6B4226',
-  },
-  title: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: '#fff',
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 14,
-    color: '#f5f5f5',
-    opacity: 0.9,
-  },
-  card: {
-    marginHorizontal: 20,
-    marginTop: 20,
-    padding: 20,
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  cardTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 16,
-  },
-  cardContent: {
-    gap: 12,
-  },
-  // Fluxo de Caixa
-  cashFlowRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    padding: spacing.lg,
+    paddingTop: spacing.lg,
+    paddingBottom: spacing['2xl'],
+    backgroundColor: colors.primary.main,
+  },
+  title: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: colors.text.inverse,
+    marginBottom: spacing.xs,
+  },
+  subtitle: {
+    fontSize: 13,
+    color: colors.text.inverse,
+    opacity: 0.9,
+  },
+  addButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: `${colors.text.inverse}20`,
+    justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 8,
   },
-  cashFlowLabel: {
+  addButtonText: {
+    fontSize: 28,
+    color: colors.text.inverse,
+    fontWeight: '300',
+  },
+  summaryRow: {
+    flexDirection: 'row',
+    paddingHorizontal: spacing.lg,
+    gap: spacing.sm,
+    marginTop: spacing.base,
+    marginBottom: spacing.base,
+  },
+  summaryCard: {
+    flex: 1,
+    padding: spacing.md,
+    borderRadius: borderRadius.base,
+    alignItems: 'center',
+    ...shadows.base,
+  },
+  summaryIcon: {
+    fontSize: 24,
+    marginBottom: spacing.xs,
+  },
+  summaryLabel: {
+    fontSize: 11,
+    color: colors.text.inverse,
+    opacity: 0.9,
+    marginBottom: spacing.xs,
+    textAlign: 'center',
+  },
+  summaryValue: {
     fontSize: 16,
-    color: '#666',
+    fontWeight: '700',
+    color: colors.text.inverse,
+    textAlign: 'center',
   },
-  cashFlowValue: {
-    fontSize: 18,
-    fontWeight: 'bold',
+  mainCard: {
+    marginHorizontal: spacing.lg,
+    marginBottom: spacing.base,
   },
-  balancePositive: {
-    color: '#22C55E',
+  emptyState: {
+    padding: spacing.base,
+    alignItems: 'center',
   },
-  toReceive: {
-    color: '#3B82F6',
-  },
-  toPay: {
-    color: '#EF4444',
+  emptyText: {
+    color: colors.text.hint,
+    fontSize: 14,
   },
   divider: {
     height: 1,
-    backgroundColor: '#e0e0e0',
-    marginVertical: 8,
+    backgroundColor: colors.neutral.light,
+    marginVertical: spacing.sm,
   },
   // Clientes
   clientsList: {
-    gap: 8,
+    gap: spacing.xs,
   },
   clientRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 8,
+    paddingVertical: spacing.sm,
   },
   clientInfo: {
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
-    gap: 12,
+    gap: spacing.md,
   },
   clientRank: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: '#6B4226',
+    backgroundColor: colors.primary.main,
     justifyContent: 'center',
     alignItems: 'center',
   },
   clientRankText: {
-    color: '#fff',
+    color: colors.text.inverse,
     fontSize: 12,
-    fontWeight: 'bold',
+    fontWeight: '700',
   },
   clientName: {
     fontSize: 15,
-    color: '#333',
+    color: colors.text.primary,
     flex: 1,
   },
   clientValue: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#22C55E',
+    color: colors.success,
   },
   // Gastos
   expensesList: {
-    gap: 8,
+    gap: spacing.xs,
   },
   expenseRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 12,
-    gap: 16,
+    paddingVertical: spacing.md,
+    gap: spacing.base,
   },
   expenseInfo: {
     flex: 1,
   },
   expenseName: {
     fontSize: 15,
-    color: '#333',
-    marginBottom: 8,
+    color: colors.text.primary,
+    marginBottom: spacing.sm,
   },
   progressBar: {
     height: 6,
-    backgroundColor: '#e0e0e0',
+    backgroundColor: colors.neutral.light,
     borderRadius: 3,
     overflow: 'hidden',
   },
   progressFill: {
     height: '100%',
-    backgroundColor: '#6B4226',
+    backgroundColor: colors.primary.main,
     borderRadius: 3,
   },
   expenseValues: {
@@ -537,25 +570,25 @@ const styles = StyleSheet.create({
   expenseValue: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#333',
+    color: colors.text.primary,
   },
   expensePercentage: {
     fontSize: 12,
-    color: '#999',
+    color: colors.text.secondary,
     marginTop: 2,
   },
   // Contas Recentes
   accountsList: {
-    gap: 8,
+    gap: spacing.xs,
   },
   accountCard: {
-    paddingVertical: 12,
+    paddingVertical: spacing.md,
   },
   accountHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 12,
-    gap: 12,
+    marginBottom: spacing.md,
+    gap: spacing.md,
   },
   accountHeaderLeft: {
     flex: 1,
@@ -566,86 +599,61 @@ const styles = StyleSheet.create({
   accountDescription: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#333',
-    marginBottom: 8,
+    color: colors.text.primary,
+    marginBottom: spacing.sm,
   },
   accountMeta: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: spacing.sm,
   },
   accountTypeBadge: {
-    paddingHorizontal: 8,
+    paddingHorizontal: spacing.sm,
     paddingVertical: 3,
     borderRadius: 4,
   },
   typeBadgeReceivable: {
-    backgroundColor: '#22C55E15',
+    backgroundColor: `${colors.success}15`,
   },
   typeBadgePayable: {
-    backgroundColor: '#EF444415',
+    backgroundColor: `${colors.error}15`,
   },
   accountTypeBadgeText: {
     fontSize: 11,
     fontWeight: '600',
   },
   typeBadgeTextReceivable: {
-    color: '#22C55E',
+    color: colors.success,
   },
   typeBadgeTextPayable: {
-    color: '#EF4444',
+    color: colors.error,
   },
   accountCategory: {
     fontSize: 12,
-    color: '#999',
+    color: colors.text.secondary,
   },
   accountValue: {
     fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
+    fontWeight: '700',
+    color: colors.text.primary,
     marginBottom: 4,
   },
   accountDueDate: {
     fontSize: 12,
-    color: '#666',
-  },
-  accountActions: {
-    flexDirection: 'row',
-    gap: 8,
+    color: colors.text.secondary,
   },
   actionButton: {
-    flex: 1,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    backgroundColor: '#22C55E',
-    borderRadius: 6,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    backgroundColor: colors.success,
+    borderRadius: borderRadius.base,
     alignItems: 'center',
+    marginTop: spacing.xs,
+    ...shadows.sm,
   },
   actionButtonText: {
-    color: '#fff',
+    color: colors.text.inverse,
     fontSize: 13,
     fontWeight: '600',
-  },
-  // Floating Action Button
-  fab: {
-    position: 'absolute',
-    right: 20,
-    bottom: 20,
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: '#6B4226',
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
-  },
-  fabIcon: {
-    fontSize: 32,
-    color: '#fff',
-    fontWeight: '300',
   },
 })

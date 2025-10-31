@@ -1,8 +1,9 @@
 import { BottomTabScreenProps } from '@react-navigation/bottom-tabs'
 import { CompositeScreenProps } from '@react-navigation/native'
 import { NativeStackScreenProps } from '@react-navigation/native-stack'
-import React, { useMemo, useState } from 'react'
+import React, { useCallback, useMemo, useState } from 'react'
 import {
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -54,12 +55,24 @@ export function ProductionScreen({ navigation }: Props) {
     data: productionStats,
     isLoading: statsLoading,
     error: statsError,
+    refetch: refetchStats,
   } = useProductionStats(selectedProperty?.id, currentYear)
+
+  // Pull to refresh
+  const [refreshing, setRefreshing] = React.useState(false)
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true)
+    try {
+      await Promise.all([refetchPlots(), refetchStats()])
+    } finally {
+      setRefreshing(false)
+    }
+  }, [refetchPlots, refetchStats])
 
   // Filtrar talhões pela busca
   const filteredPlots = useMemo(
     () =>
-      plots.filter((plot) =>
+      plots.filter(plot =>
         plot.name.toLowerCase().includes(searchQuery.toLowerCase())
       ),
     [plots, searchQuery]
@@ -144,7 +157,17 @@ export function ProductionScreen({ navigation }: Props) {
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={['#6B4226']}
+            tintColor="#6B4226"
+          />
+        }
+      >
         <View style={styles.header}>
           <Text style={styles.title}>Produção</Text>
           <Text style={styles.subtitle}>Visão Geral de Produção</Text>
@@ -232,7 +255,7 @@ export function ProductionScreen({ navigation }: Props) {
               </Text>
             </View>
           ) : (
-            filteredPlots.map((plot) => {
+            filteredPlots.map(plot => {
               const statusColor = getStatusColor(plot.status)
               // Estimar produção (30 sacas/ha como padrão)
               const estimatedProduction = Math.round((plot.area || 0) * 30)

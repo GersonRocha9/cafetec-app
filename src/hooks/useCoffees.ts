@@ -33,7 +33,7 @@ export const useCreateCoffee = () => {
 
   return useMutation({
     mutationFn: (coffee: CoffeeInsert) => coffeeService.createCoffee(coffee),
-    onSuccess: (data) => {
+    onSuccess: data => {
       queryClient.invalidateQueries({
         queryKey: queryKeys.coffees.byProperty(data.property_id),
       })
@@ -53,7 +53,7 @@ export const useUpdateCoffee = () => {
       coffeeId: string
       updates: CoffeeUpdate
     }) => coffeeService.updateCoffee(coffeeId, updates),
-    onSuccess: (data) => {
+    onSuccess: data => {
       queryClient.invalidateQueries({
         queryKey: queryKeys.coffees.detail(data.id),
       })

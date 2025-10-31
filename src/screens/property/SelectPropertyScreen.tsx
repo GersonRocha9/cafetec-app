@@ -23,7 +23,11 @@ type Props = NativeStackScreenProps<PropertyStackParamList, 'SelectProperty'>
 
 export function SelectPropertyScreen({ navigation }: Props) {
   const { user } = useAuth()
-  const { setSelectedProperty, selectedProperty } = useProperty()
+  const {
+    setSelectedProperty,
+    selectedProperty,
+    loading: contextLoading,
+  } = useProperty()
   const deletePropertyMutation = useDeleteProperty()
 
   const {
@@ -32,6 +36,37 @@ export function SelectPropertyScreen({ navigation }: Props) {
     error,
     refetch,
   } = useProperties(user?.id)
+
+  // Navegar automaticamente se já houver uma propriedade selecionada
+  // APENAS na montagem inicial (não quando limpar a propriedade)
+  const hasNavigatedRef = React.useRef(false)
+
+  React.useEffect(() => {
+    if (
+      !contextLoading &&
+      selectedProperty &&
+      !isLoading &&
+      properties &&
+      !hasNavigatedRef.current
+    ) {
+      // Verificar se a propriedade selecionada ainda existe
+      const propertyExists = properties.some(p => p.id === selectedProperty.id)
+      if (propertyExists) {
+        hasNavigatedRef.current = true
+        navigation.navigate('PropertyTabs', { screen: 'Home' })
+      } else {
+        // Se não existe mais, limpar seleção
+        setSelectedProperty(null)
+      }
+    }
+  }, [
+    contextLoading,
+    selectedProperty,
+    isLoading,
+    properties,
+    navigation,
+    setSelectedProperty,
+  ])
 
   const handleSelectProperty = (property: Property) => {
     setSelectedProperty(property)
@@ -110,7 +145,9 @@ export function SelectPropertyScreen({ navigation }: Props) {
       <View style={styles.propertyInfo}>
         <Text style={styles.propertyName}>{item.name}</Text>
         {item.nickname && (
-          <Text style={styles.propertyNickname}>"{item.nickname}"</Text>
+          <Text style={styles.propertyNickname}>
+            &quot;{item.nickname}&quot;
+          </Text>
         )}
         <Text style={styles.propertyLocation}>
           📍 {item.city} - {item.state}
@@ -120,13 +157,13 @@ export function SelectPropertyScreen({ navigation }: Props) {
         <View style={styles.actionButtons}>
           <TouchableOpacity
             style={[styles.actionButton, styles.editButton]}
-            onPress={(e) => handleEditProperty(item, e)}
+            onPress={e => handleEditProperty(item, e)}
           >
             <Text style={styles.actionButtonText}>✏️ Editar</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.actionButton, styles.deleteButton]}
-            onPress={(e) => handleDeleteProperty(item, e)}
+            onPress={e => handleDeleteProperty(item, e)}
           >
             <Text style={styles.actionButtonText}>🗑️ Excluir</Text>
           </TouchableOpacity>
@@ -178,7 +215,7 @@ export function SelectPropertyScreen({ navigation }: Props) {
 
       <FlatList
         data={properties}
-        keyExtractor={(item) => item.id}
+        keyExtractor={item => item.id}
         renderItem={renderPropertyItem}
         contentContainerStyle={styles.listContainer}
       />

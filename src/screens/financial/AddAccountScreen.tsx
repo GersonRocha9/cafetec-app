@@ -279,7 +279,7 @@ export function AddAccountScreen({ navigation }: Props) {
                             Selecione a Categoria
                           </Text>
                           <ScrollView style={styles.modalScroll}>
-                            {categories.map((category) => (
+                            {categories.map(category => (
                               <TouchableOpacity
                                 key={category}
                                 style={[

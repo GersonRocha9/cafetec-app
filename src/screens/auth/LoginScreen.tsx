@@ -8,11 +8,16 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  ActivityIndicator,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { z } from 'zod'
 import { useAuth } from '../../contexts/AuthContext'
 import { AuthStackParamList } from '../../types/navigation'
+import { colors, spacing, borderRadius, shadows } from '../../constants/theme'
 
 const loginSchema = z.object({
   email: z
@@ -54,70 +59,162 @@ export function LoginScreen({ navigation }: Props) {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.content}>
-        <Text style={styles.title}>Cafetec</Text>
-
-        <View style={styles.inputContainer}>
-          <Controller
-            control={control}
-            name="email"
-            render={({ field: { onChange, onBlur, value } }) => (
-              <TextInput
-                style={[styles.input, errors.email && styles.inputError]}
-                placeholder="E-mail"
-                value={value}
-                onChangeText={onChange}
-                onBlur={onBlur}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                editable={!isSubmitting}
-              />
-            )}
-          />
-          {errors.email && (
-            <Text style={styles.errorText}>{errors.email.message}</Text>
-          )}
-        </View>
-
-        <View style={styles.inputContainer}>
-          <Controller
-            control={control}
-            name="password"
-            render={({ field: { onChange, onBlur, value } }) => (
-              <TextInput
-                style={[styles.input, errors.password && styles.inputError]}
-                placeholder="Senha"
-                value={value}
-                onChangeText={onChange}
-                onBlur={onBlur}
-                secureTextEntry
-                editable={!isSubmitting}
-              />
-            )}
-          />
-          {errors.password && (
-            <Text style={styles.errorText}>{errors.password.message}</Text>
-          )}
-        </View>
-
-        <TouchableOpacity
-          style={[styles.button, isSubmitting && styles.buttonDisabled]}
-          onPress={handleSubmit(onSubmit)}
-          disabled={isSubmitting}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.keyboardView}
+      >
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
         >
-          <Text style={styles.buttonText}>
-            {isSubmitting ? 'Entrando...' : 'Entrar'}
-          </Text>
-        </TouchableOpacity>
+          {/* Header com Logo */}
+          <View style={styles.header}>
+            <View style={styles.logoContainer}>
+              <Text style={styles.logoIcon}>☕</Text>
+            </View>
+            <Text style={styles.title}>Cafetec</Text>
+            <Text style={styles.subtitle}>
+              Gestão Inteligente para Produtores de Café
+            </Text>
+          </View>
 
-        <TouchableOpacity
-          style={styles.linkButton}
-          onPress={() => navigation.navigate('SignUp')}
-          disabled={isSubmitting}
-        >
-          <Text style={styles.linkText}>Não tem uma conta? Cadastre-se</Text>
-        </TouchableOpacity>
-      </View>
+          {/* Card de Login */}
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Entrar na sua conta</Text>
+
+            <View style={styles.inputContainer}>
+              <Text style={styles.label}>E-mail</Text>
+              <Controller
+                control={control}
+                name="email"
+                render={({ field: { onChange, onBlur, value } }) => (
+                  <View>
+                    <View
+                      style={[
+                        styles.inputWrapper,
+                        errors.email && styles.inputWrapperError,
+                      ]}
+                    >
+                      <Text style={styles.inputIcon}>📧</Text>
+                      <TextInput
+                        style={styles.input}
+                        placeholder="seu@email.com"
+                        placeholderTextColor={colors.text.hint}
+                        value={value}
+                        onChangeText={onChange}
+                        onBlur={onBlur}
+                        keyboardType="email-address"
+                        autoCapitalize="none"
+                        editable={!isSubmitting}
+                      />
+                    </View>
+                    {errors.email && (
+                      <View style={styles.errorContainer}>
+                        <Text style={styles.errorIcon}>⚠️</Text>
+                        <Text style={styles.errorText}>
+                          {errors.email.message}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                )}
+              />
+            </View>
+
+            <View style={styles.inputContainer}>
+              <Text style={styles.label}>Senha</Text>
+              <Controller
+                control={control}
+                name="password"
+                render={({ field: { onChange, onBlur, value } }) => (
+                  <View>
+                    <View
+                      style={[
+                        styles.inputWrapper,
+                        errors.password && styles.inputWrapperError,
+                      ]}
+                    >
+                      <Text style={styles.inputIcon}>🔒</Text>
+                      <TextInput
+                        style={styles.input}
+                        placeholder="Digite sua senha"
+                        placeholderTextColor={colors.text.hint}
+                        value={value}
+                        onChangeText={onChange}
+                        onBlur={onBlur}
+                        secureTextEntry
+                        editable={!isSubmitting}
+                      />
+                    </View>
+                    {errors.password && (
+                      <View style={styles.errorContainer}>
+                        <Text style={styles.errorIcon}>⚠️</Text>
+                        <Text style={styles.errorText}>
+                          {errors.password.message}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                )}
+              />
+            </View>
+
+            <TouchableOpacity
+              style={[
+                styles.button,
+                isSubmitting && styles.buttonDisabled,
+                shadows.base,
+              ]}
+              onPress={handleSubmit(onSubmit)}
+              disabled={isSubmitting}
+              activeOpacity={0.8}
+            >
+              {isSubmitting ? (
+                <ActivityIndicator color={colors.text.inverse} size="small" />
+              ) : (
+                <>
+                  <Text style={styles.buttonText}>Entrar</Text>
+                  <Text style={styles.buttonIcon}>→</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
+
+          {/* Footer com link para cadastro */}
+          <View style={styles.footer}>
+            <Text style={styles.footerText}>Ainda não tem uma conta?</Text>
+            <TouchableOpacity
+              style={styles.linkButton}
+              onPress={() => navigation.navigate('SignUp')}
+              disabled={isSubmitting}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.linkText}>Cadastre-se gratuitamente</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Informações adicionais */}
+          <View style={styles.infoContainer}>
+            <View style={styles.infoItem}>
+              <Text style={styles.infoIcon}>✅</Text>
+              <Text style={styles.infoText}>
+                Gestão completa da sua produção
+              </Text>
+            </View>
+            <View style={styles.infoItem}>
+              <Text style={styles.infoIcon}>✅</Text>
+              <Text style={styles.infoText}>Controle financeiro integrado</Text>
+            </View>
+            <View style={styles.infoItem}>
+              <Text style={styles.infoIcon}>✅</Text>
+              <Text style={styles.infoText}>
+                Dados meteorológicos em tempo real
+              </Text>
+            </View>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   )
 }
@@ -125,66 +222,163 @@ export function LoginScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: colors.background.primary,
   },
-  content: {
+  keyboardView: {
     flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.xl,
+  },
+  header: {
+    alignItems: 'center',
+    marginBottom: spacing['2xl'],
+    marginTop: spacing.lg,
+  },
+  logoContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: colors.primary.main,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
+    marginBottom: spacing.base,
+    ...shadows.lg,
+  },
+  logoIcon: {
+    fontSize: 40,
   },
   title: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    marginBottom: 30,
-    color: '#6B4226',
+    fontSize: 36,
+    fontWeight: '700',
+    color: colors.primary.main,
+    marginBottom: spacing.xs,
+  },
+  subtitle: {
+    fontSize: 14,
+    color: colors.text.secondary,
+    textAlign: 'center',
+    maxWidth: 280,
+  },
+  card: {
+    backgroundColor: colors.background.secondary,
+    borderRadius: borderRadius.lg,
+    padding: spacing.xl,
+    marginBottom: spacing.lg,
+    ...shadows.md,
+  },
+  cardTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: colors.text.primary,
+    marginBottom: spacing.lg,
   },
   inputContainer: {
-    width: '100%',
-    marginBottom: 15,
+    marginBottom: spacing.base,
+  },
+  label: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.text.primary,
+    marginBottom: spacing.xs,
+  },
+  inputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.background.tertiary,
+    borderRadius: borderRadius.base,
+    borderWidth: 1.5,
+    borderColor: colors.neutral.medium,
+    paddingHorizontal: spacing.md,
+    height: 52,
+  },
+  inputWrapperError: {
+    borderColor: colors.error,
+  },
+  inputIcon: {
+    fontSize: 20,
+    marginRight: spacing.sm,
   },
   input: {
-    width: '100%',
-    height: 50,
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    paddingHorizontal: 15,
+    flex: 1,
     fontSize: 16,
-    backgroundColor: '#fff',
+    color: colors.text.primary,
   },
-  inputError: {
-    borderColor: '#DC2626',
+  errorContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: spacing.xs,
+    paddingHorizontal: spacing.xs,
+  },
+  errorIcon: {
+    fontSize: 14,
+    marginRight: 4,
   },
   errorText: {
-    color: '#DC2626',
+    color: colors.error,
     fontSize: 12,
-    marginTop: 5,
-    marginLeft: 5,
+    fontWeight: '500',
   },
   button: {
-    width: '100%',
-    height: 50,
-    backgroundColor: '#6B4226',
-    borderRadius: 8,
+    flexDirection: 'row',
+    backgroundColor: colors.primary.main,
+    borderRadius: borderRadius.base,
+    height: 52,
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 10,
+    marginTop: spacing.base,
+    gap: spacing.xs,
   },
   buttonDisabled: {
-    backgroundColor: '#A0836B',
-    opacity: 0.7,
+    opacity: 0.6,
   },
   buttonText: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: 'bold',
+    color: colors.text.inverse,
+    fontSize: 17,
+    fontWeight: '700',
+  },
+  buttonIcon: {
+    color: colors.text.inverse,
+    fontSize: 20,
+    fontWeight: '700',
+  },
+  footer: {
+    alignItems: 'center',
+    marginBottom: spacing.xl,
+  },
+  footerText: {
+    fontSize: 14,
+    color: colors.text.secondary,
+    marginBottom: spacing.xs,
   },
   linkButton: {
-    marginTop: 20,
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.sm,
   },
   linkText: {
-    color: '#6B4226',
-    fontSize: 14,
+    fontSize: 15,
+    color: colors.primary.main,
+    fontWeight: '600',
+  },
+  infoContainer: {
+    backgroundColor: `${colors.primary.light}10`,
+    borderRadius: borderRadius.base,
+    padding: spacing.base,
+    gap: spacing.sm,
+  },
+  infoItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  infoIcon: {
+    fontSize: 16,
+  },
+  infoText: {
+    fontSize: 13,
+    color: colors.text.secondary,
+    flex: 1,
   },
 })

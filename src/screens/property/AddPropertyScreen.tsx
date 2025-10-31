@@ -1,7 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { NativeStackScreenProps } from '@react-navigation/native-stack'
 import * as ImagePicker from 'expo-image-picker'
-import React, { useRef, useState } from 'react'
+import React, { useState } from 'react'
 import { Controller, useForm } from 'react-hook-form'
 import {
   ActivityIndicator,
@@ -14,7 +14,6 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native'
-import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { z } from 'zod'
 import { useAuth } from '../../contexts/AuthContext'
@@ -54,13 +53,13 @@ type Props = NativeStackScreenProps<PropertyStackParamList, 'AddProperty'>
 export function AddPropertyScreen({ navigation }: Props) {
   const { user } = useAuth()
   const createPropertyMutation = useCreateProperty()
-  const mapRef = useRef<MapView>(null)
 
   const [imageUri, setImageUri] = useState<string | null>(null)
-  const [selectedLocation, setSelectedLocation] = useState<{
+  const [coordinates, setCoordinates] = useState<{
     latitude: number
     longitude: number
   } | null>(null)
+  const [isGeocoding, setIsGeocoding] = useState(false)
 
   const {
     control,
@@ -87,6 +86,7 @@ export function AddPropertyScreen({ navigation }: Props) {
     try {
       const cleanCEP = cep.replace(/\D/g, '')
       if (cleanCEP.length === 8) {
+        setIsGeocoding(true)
         const response = await fetch(
           `https://viacep.com.br/ws/${cleanCEP}/json/`
         )
@@ -98,7 +98,7 @@ export function AddPropertyScreen({ navigation }: Props) {
           setValue('state', data.uf || '')
           setValue('complement', data.complemento || '')
 
-          // Geocode address to get coordinates
+          // Geocode address to get coordinates automatically
           const address = `${data.logradouro}, ${data.localidade}, ${data.uf}, Brazil`
           const geocodeResponse = await fetch(
             `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
@@ -114,20 +114,34 @@ export function AddPropertyScreen({ navigation }: Props) {
 
           if (geocodeData.length > 0) {
             const { lat, lon } = geocodeData[0]
-            const coordinates = {
+            const coords = {
               latitude: parseFloat(lat),
               longitude: parseFloat(lon),
             }
-
-            // Animate map to the new location
-            mapRef.current?.animateToRegion(
+            setCoordinates(coords)
+          } else {
+            // Se não encontrar coordenadas exatas, tenta só com cidade e estado
+            const fallbackAddress = `${data.localidade}, ${data.uf}, Brazil`
+            const fallbackResponse = await fetch(
+              `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
+                fallbackAddress
+              )}&limit=1`,
               {
-                ...coordinates,
-                latitudeDelta: 0.01,
-                longitudeDelta: 0.01,
-              },
-              1000
+                headers: {
+                  'User-Agent': 'CafeTecApp/1.0',
+                },
+              }
             )
+            const fallbackData = await fallbackResponse.json()
+
+            if (fallbackData.length > 0) {
+              const { lat, lon } = fallbackData[0]
+              const coords = {
+                latitude: parseFloat(lat),
+                longitude: parseFloat(lon),
+              }
+              setCoordinates(coords)
+            }
           }
         } else {
           Alert.alert('Erro', 'CEP não encontrado')
@@ -136,6 +150,8 @@ export function AddPropertyScreen({ navigation }: Props) {
     } catch (error) {
       console.error('Erro ao buscar CEP:', error)
       Alert.alert('Erro', 'Não foi possível buscar o CEP')
+    } finally {
+      setIsGeocoding(false)
     }
   }
 
@@ -151,15 +167,13 @@ export function AddPropertyScreen({ navigation }: Props) {
     }
   }
 
-  const handleMapPress = (e: any) => {
-    const { latitude, longitude } = e.nativeEvent.coordinate
-    setSelectedLocation({ latitude, longitude })
-  }
-
   const onSubmit = async (data: AddPropertyFormData) => {
     try {
-      if (!selectedLocation) {
-        Alert.alert('Atenção', 'Selecione a localização da propriedade no mapa')
+      if (!coordinates) {
+        Alert.alert(
+          'Atenção',
+          'Não foi possível obter as coordenadas do endereço. Verifique se o CEP está correto.'
+        )
         return
       }
 
@@ -198,7 +212,7 @@ export function AddPropertyScreen({ navigation }: Props) {
                 text: 'Continuar',
                 onPress: async () => {
                   // Continue without image
-                  await saveProperty(data, selectedLocation, null)
+                  await saveProperty(data, coordinates, null)
                 },
               },
             ]
@@ -208,7 +222,7 @@ export function AddPropertyScreen({ navigation }: Props) {
       }
 
       // Save property with image URL
-      await saveProperty(data, selectedLocation, imageUrl)
+      await saveProperty(data, coordinates, imageUrl)
     } catch (error: any) {
       console.error('Error:', error)
       Alert.alert(
@@ -369,7 +383,7 @@ export function AddPropertyScreen({ navigation }: Props) {
                   style={[styles.input, errors.cep && styles.inputError]}
                   placeholder="00000-000"
                   value={value}
-                  onChangeText={(text) => {
+                  onChangeText={text => {
                     onChange(text)
                     if (text.replace(/\D/g, '').length === 8) {
                       searchCEP(text)
@@ -496,64 +510,46 @@ export function AddPropertyScreen({ navigation }: Props) {
           </View>
         </View>
 
-        {/* Seção de Localização no Mapa */}
+        {/* Seção de Localização */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>🗺️ Localização no Mapa</Text>
+          <Text style={styles.sectionTitle}>📍 Localização</Text>
           <Text style={styles.hint}>
-            Toque no mapa para marcar a localização exata da propriedade
+            As coordenadas são obtidas automaticamente baseadas no endereço
           </Text>
 
-          {selectedLocation && (
+          {isGeocoding && (
+            <View style={styles.geocodingCard}>
+              <ActivityIndicator size="small" color="#6B4226" />
+              <Text style={styles.geocodingText}>Buscando coordenadas...</Text>
+            </View>
+          )}
+
+          {coordinates && !isGeocoding && (
             <View style={styles.coordinatesCard}>
-              <Text style={styles.coordinatesTitle}>
-                📍 Localização Selecionada
-              </Text>
+              <Text style={styles.coordinatesTitle}>✅ Localização Obtida</Text>
               <View style={styles.coordinatesRow}>
                 <Text style={styles.coordinatesLabel}>Latitude:</Text>
                 <Text style={styles.coordinatesValue}>
-                  {selectedLocation.latitude.toFixed(6)}
+                  {coordinates.latitude.toFixed(6)}
                 </Text>
               </View>
               <View style={styles.coordinatesRow}>
                 <Text style={styles.coordinatesLabel}>Longitude:</Text>
                 <Text style={styles.coordinatesValue}>
-                  {selectedLocation.longitude.toFixed(6)}
+                  {coordinates.longitude.toFixed(6)}
                 </Text>
               </View>
             </View>
           )}
 
-          <View style={styles.mapContainer}>
-            <MapView
-              ref={mapRef}
-              style={styles.map}
-              initialRegion={{
-                latitude: selectedLocation?.latitude || -22.4064,
-                longitude: selectedLocation?.longitude || -47.5614,
-                latitudeDelta: 0.0922,
-                longitudeDelta: 0.0421,
-              }}
-              provider={PROVIDER_GOOGLE}
-              onPress={handleMapPress}
-            >
-              {selectedLocation && (
-                <Marker
-                  coordinate={selectedLocation}
-                  title="Localização da Propriedade"
-                  description={`Lat: ${selectedLocation.latitude.toFixed(
-                    4
-                  )}, Long: ${selectedLocation.longitude.toFixed(4)}`}
-                />
-              )}
-            </MapView>
-            {!selectedLocation && (
-              <View style={styles.mapOverlay}>
-                <Text style={styles.mapOverlayText}>
-                  👆 Toque no mapa para selecionar a localização
-                </Text>
-              </View>
-            )}
-          </View>
+          {!coordinates && !isGeocoding && (
+            <View style={styles.noCoordinatesCard}>
+              <Text style={styles.noCoordinatesIcon}>⚠️</Text>
+              <Text style={styles.noCoordinatesText}>
+                Preencha o CEP para obter as coordenadas automaticamente
+              </Text>
+            </View>
+          )}
         </View>
 
         {/* Botões de Ação */}
@@ -698,6 +694,22 @@ const styles = StyleSheet.create({
   inputLarge: {
     flex: 2,
   },
+  geocodingCard: {
+    backgroundColor: '#fff',
+    padding: 20,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    marginTop: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  geocodingText: {
+    fontSize: 14,
+    color: '#666',
+    fontWeight: '500',
+  },
   coordinatesCard: {
     backgroundColor: '#fff',
     padding: 16,
@@ -705,7 +717,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#22C55E',
     marginTop: 12,
-    marginBottom: 16,
   },
   coordinatesTitle: {
     fontSize: 16,
@@ -730,24 +741,23 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     fontFamily: 'monospace',
   },
-  mapContainer: {
-    position: 'relative',
-    marginTop: 8,
-  },
-  mapOverlay: {
-    position: 'absolute',
-    top: 16,
-    left: 16,
-    right: 16,
-    backgroundColor: 'rgba(107, 66, 38, 0.9)',
-    padding: 12,
-    borderRadius: 8,
+  noCoordinatesCard: {
+    backgroundColor: '#FEF3C7',
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#F59E0B',
+    marginTop: 12,
     alignItems: 'center',
   },
-  mapOverlayText: {
-    color: '#fff',
+  noCoordinatesIcon: {
+    fontSize: 32,
+    marginBottom: 8,
+  },
+  noCoordinatesText: {
     fontSize: 14,
-    fontWeight: '600',
+    color: '#92400E',
+    fontWeight: '500',
     textAlign: 'center',
   },
   buttonContainer: {
@@ -785,11 +795,5 @@ const styles = StyleSheet.create({
     color: '#666',
     fontSize: 16,
     fontWeight: '600',
-  },
-  map: {
-    width: '100%',
-    height: 300,
-    borderRadius: 12,
-    overflow: 'hidden',
   },
 })

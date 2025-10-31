@@ -83,7 +83,7 @@ export const getStatusColor = (status: string): string => {
   const statusColors: Record<string, string> = {
     'Pronto para Colheita': '#4CAF50',
     'Aguardando Colheita': '#FF9800',
-    'Colhido': '#2196F3',
+    Colhido: '#2196F3',
     'Em Manutenção': '#9E9E9E',
   }
   return statusColors[status] || '#757575'
@@ -138,4 +138,3 @@ export const formatCEP = (cep: string): string => {
   }
   return cep
 }
-

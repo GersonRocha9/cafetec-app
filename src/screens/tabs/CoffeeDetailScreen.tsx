@@ -50,7 +50,7 @@ export function CoffeeDetailScreen({ route, navigation }: Props) {
   // Filtrar talhões pela busca
   const filteredPlots = useMemo(
     () =>
-      plots.filter((plot) =>
+      plots.filter(plot =>
         plot.name.toLowerCase().includes(searchQuery.toLowerCase())
       ),
     [plots, searchQuery]
@@ -143,7 +143,7 @@ export function CoffeeDetailScreen({ route, navigation }: Props) {
               </Text>
             </View>
           ) : (
-            filteredPlots.map((plot) => {
+            filteredPlots.map(plot => {
               const statusColor = getStatusColor(plot.status)
               return (
                 <TouchableOpacity

@@ -46,7 +46,7 @@ export const useCreateProductionData = () => {
   return useMutation({
     mutationFn: (production: ProductionDataInsert) =>
       productionService.createProductionData(production),
-    onSuccess: (data) => {
+    onSuccess: data => {
       queryClient.invalidateQueries({
         queryKey: queryKeys.production.byPlot(data.plot_id),
       })
@@ -67,7 +67,7 @@ export const useUpdateProductionData = () => {
       productionId: string
       updates: ProductionDataUpdate
     }) => productionService.updateProductionData(productionId, updates),
-    onSuccess: (data) => {
+    onSuccess: data => {
       queryClient.invalidateQueries({
         queryKey: queryKeys.production.byPlot(data.plot_id),
       })

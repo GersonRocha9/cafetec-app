@@ -1,17 +1,23 @@
 import { BottomTabScreenProps } from '@react-navigation/bottom-tabs'
-import React from 'react'
-import { ScrollView, StyleSheet, Text, View } from 'react-native'
+import React, { useCallback } from 'react'
+import {
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { LoadingState } from '../../components'
+import { LoadingState, Card, CardHeader, CardContent } from '../../components'
 import { useProperty } from '../../contexts/PropertyContext'
 import {
   useFinancialSummary,
-  usePlotsByProperty,
   useProductionStats,
   useWeather,
 } from '../../hooks'
 import { weatherService } from '../../services'
 import { PropertyTabsParamList } from '../../types/navigation'
+import { colors, spacing } from '../../constants/theme'
 
 type Props = BottomTabScreenProps<PropertyTabsParamList, 'Home'>
 
@@ -29,22 +35,40 @@ export function HomeScreen({ navigation }: Props) {
   })
 
   // Buscar dados
-  const { data: financialSummary, isLoading: financialLoading } =
-    useFinancialSummary(selectedProperty?.id)
+  const {
+    data: financialSummary,
+    isLoading: financialLoading,
+    refetch: refetchFinancial,
+  } = useFinancialSummary(selectedProperty?.id)
 
-  const { data: productionStats, isLoading: productionLoading } =
-    useProductionStats(selectedProperty?.id, currentYear)
-
-  const { data: plots = [], isLoading: plotsLoading } = usePlotsByProperty(
-    selectedProperty?.id
-  )
+  const {
+    data: productionStats,
+    isLoading: productionLoading,
+    refetch: refetchProduction,
+  } = useProductionStats(selectedProperty?.id, currentYear)
 
   // Weather data from API
   const {
     data: weatherData,
     isLoading: weatherLoading,
     error: weatherError,
+    refetch: refetchWeather,
   } = useWeather(selectedProperty?.latitude, selectedProperty?.longitude)
+
+  // Pull to refresh
+  const [refreshing, setRefreshing] = React.useState(false)
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true)
+    try {
+      await Promise.all([
+        refetchFinancial(),
+        refetchProduction(),
+        refetchWeather(),
+      ])
+    } finally {
+      setRefreshing(false)
+    }
+  }, [refetchFinancial, refetchProduction, refetchWeather])
 
   // Process weather data
   const temperature = weatherData
@@ -69,7 +93,6 @@ export function HomeScreen({ navigation }: Props) {
 
   const totalArea = productionStats?.total_area || 0
   const totalPlots = productionStats?.total_plots || 0
-  const expectedProduction = productionStats?.expected_production || 0
   const actualProduction = productionStats?.actual_production || 0
   const productionPercentage = productionStats?.production_percentage || 0
   const totalCost = productionStats?.total_cost || 0
@@ -82,16 +105,14 @@ export function HomeScreen({ navigation }: Props) {
     totalArea > 0 ? (actualProduction / totalArea).toFixed(1) : '0.0'
 
   // Loading state
-  const isLoading = financialLoading || productionLoading || plotsLoading
+  const isLoading = financialLoading || productionLoading
 
   if (isLoading) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.header}>
-          <Text style={styles.title}>Início</Text>
-          <Text style={styles.subtitle}>
-            {dateString.charAt(0).toUpperCase() + dateString.slice(1)}
-          </Text>
+          <Text style={styles.greeting}>Olá! 👋</Text>
+          <Text style={styles.propertyName}>{selectedProperty?.name}</Text>
         </View>
         <LoadingState />
       </SafeAreaView>
@@ -100,153 +121,201 @@ export function HomeScreen({ navigation }: Props) {
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[colors.primary.main]}
+            tintColor={colors.primary.main}
+          />
+        }
+      >
+        {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.title}>Início</Text>
-          <Text style={styles.subtitle}>
-            {dateString.charAt(0).toUpperCase() + dateString.slice(1)}
-          </Text>
+          <View style={styles.headerContent}>
+            <View>
+              <Text style={styles.greeting}>Olá! 👋</Text>
+              <Text style={styles.propertyName}>{selectedProperty?.name}</Text>
+              <Text style={styles.date}>
+                {dateString.charAt(0).toUpperCase() + dateString.slice(1)}
+              </Text>
+            </View>
+            <View style={styles.weatherWidget}>
+              {temperature && (
+                <>
+                  <Text style={styles.weatherTemp}>{temperature}°C</Text>
+                  <Text style={styles.weatherCondition}>
+                    {condition.charAt(0).toUpperCase() + condition.slice(1)}
+                  </Text>
+                </>
+              )}
+            </View>
+          </View>
+        </View>
+
+        {/* Cards de Métricas Rápidas */}
+        <View style={styles.statsRow}>
+          <View
+            style={[
+              styles.statCard,
+              {
+                backgroundColor: balance >= 0 ? colors.success : colors.error,
+              },
+            ]}
+          >
+            <Text style={styles.statIcon}>💰</Text>
+            <Text style={styles.statLabel}>Saldo Atual</Text>
+            <Text style={styles.statValue}>{formatCurrency(balance)}</Text>
+          </View>
+          <View
+            style={[styles.statCard, { backgroundColor: colors.accent.amber }]}
+          >
+            <Text style={styles.statIcon}>📊</Text>
+            <Text style={styles.statLabel}>Safra {currentYear}</Text>
+            <Text style={styles.statValue}>
+              {productionPercentage.toFixed(0)}%
+            </Text>
+          </View>
         </View>
 
         {/* Card de Resumo Financeiro */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>💰 Resumo Financeiro</Text>
-          <View style={styles.cardContent}>
-            <View style={styles.financialRow}>
-              <Text style={styles.financialLabel}>Saldo Atual</Text>
-              <Text
-                style={[
-                  styles.financialValue,
-                  balance >= 0 ? styles.balancePositive : styles.toPay,
-                ]}
-              >
-                {formatCurrency(balance)}
-              </Text>
-            </View>
-            <View style={styles.divider} />
-            <View style={styles.financialRow}>
-              <Text style={styles.financialLabel}>A Receber</Text>
-              <Text style={[styles.financialValue, styles.toReceive]}>
-                {formatCurrency(toReceive)}
-              </Text>
-            </View>
-            <View style={styles.divider} />
-            <View style={styles.financialRow}>
-              <Text style={styles.financialLabel}>A Pagar</Text>
-              <Text style={[styles.financialValue, styles.toPay]}>
-                {formatCurrency(toPay)}
-              </Text>
-            </View>
-          </View>
-        </View>
-
-        {/* Card de Resumo de Produção */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>📊 Resumo de Produção</Text>
-          <View style={styles.cardContent}>
-            <View style={styles.productionRow}>
-              <Text style={styles.productionLabel}>
-                Progresso da Safra {currentYear}
-              </Text>
-              <View style={styles.percentageContainer}>
-                <Text style={styles.percentageValue}>
-                  {productionPercentage.toFixed(0)}%
+        <Card variant="elevated" style={styles.card}>
+          <CardHeader title="Resumo Financeiro" icon="💰" />
+          <CardContent>
+            <View style={styles.financialGrid}>
+              <View style={styles.financialItem}>
+                <Text style={styles.financialLabel}>A Receber</Text>
+                <Text style={[styles.financialValue, { color: colors.info }]}>
+                  {formatCurrency(toReceive)}
                 </Text>
-                <Text style={styles.percentageLabel}>do esperado</Text>
+              </View>
+              <View style={styles.financialDivider} />
+              <View style={styles.financialItem}>
+                <Text style={styles.financialLabel}>A Pagar</Text>
+                <Text style={[styles.financialValue, { color: colors.error }]}>
+                  {formatCurrency(toPay)}
+                </Text>
               </View>
             </View>
-            <View style={styles.divider} />
-            <View style={styles.productionRow}>
-              <Text style={styles.productionLabel}>Gasto Total</Text>
-              <Text style={styles.productionValue}>
-                {formatCurrency(totalCost)}
-              </Text>
-            </View>
-            <View style={styles.divider} />
-            <View style={styles.productionRow}>
-              <Text style={styles.productionLabel}>Produção por Hectare</Text>
-              <Text style={styles.productionValue}>
-                {productionPerHectare} sacas/ha
-              </Text>
-            </View>
-          </View>
-        </View>
+          </CardContent>
+        </Card>
 
-        {/* Card de Previsão do Tempo */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>🌤️ Previsão do Tempo</Text>
-          {weatherLoading ? (
-            <View style={{ padding: 20, alignItems: 'center' }}>
-              <Text style={{ color: '#999' }}>Carregando clima...</Text>
+        {/* Card de Produção */}
+        <Card variant="elevated" style={styles.card}>
+          <CardHeader title="Indicadores de Produção" icon="🌱" />
+          <CardContent>
+            <View style={styles.productionRow}>
+              <View style={styles.productionItem}>
+                <Text style={styles.productionIcon}>📦</Text>
+                <Text style={styles.productionValue}>
+                  {Math.round(actualProduction)}
+                </Text>
+                <Text style={styles.productionLabel}>Sacas Produzidas</Text>
+              </View>
+              <View style={styles.productionItem}>
+                <Text style={styles.productionIcon}>💵</Text>
+                <Text style={styles.productionValue}>
+                  {formatCurrency(totalCost)}
+                </Text>
+                <Text style={styles.productionLabel}>Custo Total</Text>
+              </View>
+              <View style={styles.productionItem}>
+                <Text style={styles.productionIcon}>📈</Text>
+                <Text style={styles.productionValue}>
+                  {productionPerHectare}
+                </Text>
+                <Text style={styles.productionLabel}>Sacas/Hectare</Text>
+              </View>
             </View>
-          ) : weatherError || !temperature ? (
-            <View style={{ padding: 20, alignItems: 'center' }}>
-              <Text style={{ color: '#999', textAlign: 'center' }}>
+          </CardContent>
+        </Card>
+
+        {/* Card de Clima */}
+        <Card variant="elevated" style={styles.card}>
+          <CardHeader
+            title="Condições Climáticas"
+            icon="🌤️"
+            subtitle="Dados atuais"
+          />
+          <CardContent>
+            {weatherLoading ? (
+              <Text style={styles.weatherLoading}>Carregando clima...</Text>
+            ) : weatherError || !temperature ? (
+              <Text style={styles.weatherError}>
                 Não foi possível carregar os dados do clima
               </Text>
-            </View>
-          ) : (
-            <View style={styles.weatherContainer}>
-              <View style={styles.temperatureSection}>
-                <Text style={styles.temperature}>{temperature}°C</Text>
-                <Text style={styles.weatherCondition}>
-                  {condition.charAt(0).toUpperCase() + condition.slice(1)}
-                </Text>
-              </View>
-              <View style={styles.weatherDetails}>
-                <View style={styles.weatherDetailRow}>
-                  <Text style={styles.weatherDetailLabel}>💧 Umidade</Text>
-                  <Text style={styles.weatherDetailValue}>{humidity}%</Text>
+            ) : (
+              <View style={styles.weatherGrid}>
+                <View style={styles.weatherItem}>
+                  <Text style={styles.weatherIcon}>💧</Text>
+                  <Text style={styles.weatherValue}>{humidity}%</Text>
+                  <Text style={styles.weatherLabel}>Umidade</Text>
                 </View>
-                <View style={styles.weatherDetailRow}>
-                  <Text style={styles.weatherDetailLabel}>🌬️ Vento</Text>
-                  <Text style={styles.weatherDetailValue}>{wind} km/h</Text>
+                <View style={styles.weatherItem}>
+                  <Text style={styles.weatherIcon}>🌬️</Text>
+                  <Text style={styles.weatherValue}>{wind} km/h</Text>
+                  <Text style={styles.weatherLabel}>Vento</Text>
                 </View>
-                <View style={styles.weatherDetailRow}>
-                  <Text style={styles.weatherDetailLabel}>🌧️ Chuva</Text>
-                  <Text style={styles.weatherDetailValue}>
+                <View style={styles.weatherItem}>
+                  <Text style={styles.weatherIcon}>🌧️</Text>
+                  <Text style={styles.weatherValue}>
                     {rainfall.toFixed(1)} mm
                   </Text>
+                  <Text style={styles.weatherLabel}>Chuva</Text>
+                </View>
+              </View>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Card de Estatísticas da Propriedade */}
+        <Card variant="elevated" style={styles.card}>
+          <CardHeader title="Dados da Propriedade" icon="🏞️" />
+          <CardContent>
+            <View style={styles.propertyStats}>
+              <View style={styles.propertyStatItem}>
+                <View style={styles.propertyStatIcon}>
+                  <Text style={styles.propertyStatEmoji}>🌾</Text>
+                </View>
+                <View style={styles.propertyStatContent}>
+                  <Text style={styles.propertyStatValue}>
+                    {totalArea.toFixed(0)} ha
+                  </Text>
+                  <Text style={styles.propertyStatLabel}>Área Total</Text>
+                </View>
+              </View>
+
+              <View style={styles.propertyStatItem}>
+                <View style={styles.propertyStatIcon}>
+                  <Text style={styles.propertyStatEmoji}>📍</Text>
+                </View>
+                <View style={styles.propertyStatContent}>
+                  <Text style={styles.propertyStatValue}>{totalPlots}</Text>
+                  <Text style={styles.propertyStatLabel}>Talhões</Text>
+                </View>
+              </View>
+
+              <View style={styles.propertyStatItem}>
+                <View style={styles.propertyStatIcon}>
+                  <Text style={styles.propertyStatEmoji}>🌱</Text>
+                </View>
+                <View style={styles.propertyStatContent}>
+                  <Text style={styles.propertyStatValue}>
+                    {estimatedPlants >= 1000
+                      ? `${Math.round(estimatedPlants / 1000)}k`
+                      : estimatedPlants}
+                  </Text>
+                  <Text style={styles.propertyStatLabel}>Plantas Est.*</Text>
                 </View>
               </View>
             </View>
-          )}
-        </View>
-
-        {/* Card de Estatísticas Rápidas */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>📈 Estatísticas da Propriedade</Text>
-          <View style={styles.statsContainer}>
-            <View style={styles.statItem}>
-              <Text style={styles.statValue}>{totalArea.toFixed(0)}</Text>
-              <Text style={styles.statLabel}>hectares</Text>
-            </View>
-            <View style={styles.statDivider} />
-            <View style={styles.statItem}>
-              <Text style={styles.statValue}>{totalPlots}</Text>
-              <Text style={styles.statLabel}>talhões</Text>
-            </View>
-            <View style={styles.statDivider} />
-            <View style={styles.statItem}>
-              <Text style={styles.statValue}>
-                {estimatedPlants >= 1000
-                  ? `${Math.round(estimatedPlants / 1000)}k`
-                  : estimatedPlants}
-              </Text>
-              <Text style={styles.statLabel}>plantas*</Text>
-            </View>
-          </View>
-          <Text
-            style={{
-              fontSize: 11,
-              color: '#999',
-              textAlign: 'center',
-              marginTop: 8,
-            }}
-          >
-            * Estimativa baseada em 6.000 plantas/ha
-          </Text>
-        </View>
+            <Text style={styles.footnote}>
+              * Estimativa baseada em 6.000 plantas/ha
+            </Text>
+          </CardContent>
+        </Card>
       </ScrollView>
     </SafeAreaView>
   )
@@ -255,165 +324,206 @@ export function HomeScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f9f9f9',
+    backgroundColor: colors.background.primary,
   },
   scrollContent: {
-    paddingBottom: 20,
+    paddingBottom: spacing['2xl'],
   },
   header: {
-    padding: 20,
-    paddingBottom: 30,
-    backgroundColor: '#6B4226',
+    paddingTop: spacing.lg,
+    paddingBottom: spacing['2xl'],
+    paddingHorizontal: spacing.lg,
+    backgroundColor: colors.primary.main,
   },
-  title: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: '#fff',
-    marginBottom: 8,
+  headerContent: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
   },
-  subtitle: {
-    fontSize: 14,
-    color: '#f5f5f5',
+  greeting: {
+    fontSize: 16,
+    color: colors.text.inverse,
     opacity: 0.9,
   },
-  card: {
-    marginHorizontal: 20,
-    marginTop: 20,
-    padding: 20,
-    backgroundColor: '#fff',
-    borderRadius: 16,
+  propertyName: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: colors.text.inverse,
+    marginTop: spacing.xs,
+  },
+  date: {
+    fontSize: 13,
+    color: colors.text.inverse,
+    opacity: 0.8,
+    marginTop: spacing.xs,
+  },
+  weatherWidget: {
+    alignItems: 'flex-end',
+  },
+  weatherTemp: {
+    fontSize: 32,
+    fontWeight: '700',
+    color: colors.text.inverse,
+  },
+  weatherCondition: {
+    fontSize: 12,
+    color: colors.text.inverse,
+    opacity: 0.9,
+    marginTop: 2,
+  },
+  statsRow: {
+    flexDirection: 'row',
+    paddingHorizontal: spacing.lg,
+    gap: spacing.md,
+    marginTop: spacing.base,
+    marginBottom: spacing.lg,
+  },
+  statCard: {
+    flex: 1,
+    padding: spacing.base,
+    borderRadius: 12,
+    alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
-    shadowRadius: 8,
+    shadowRadius: 4,
     elevation: 3,
   },
-  cardTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 16,
-  },
-  cardContent: {
-    gap: 12,
-  },
-  // Estilos Financeiros
-  financialRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 8,
-  },
-  financialLabel: {
-    fontSize: 16,
-    color: '#666',
-  },
-  financialValue: {
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  balancePositive: {
-    color: '#22C55E',
-  },
-  toReceive: {
-    color: '#3B82F6',
-  },
-  toPay: {
-    color: '#EF4444',
-  },
-  divider: {
-    height: 1,
-    backgroundColor: '#e0e0e0',
-  },
-  // Estilos de Produção
-  productionRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 8,
-  },
-  productionLabel: {
-    fontSize: 16,
-    color: '#666',
-    flex: 1,
-  },
-  productionValue: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
-  },
-  percentageContainer: {
-    alignItems: 'flex-end',
-  },
-  percentageValue: {
+  statIcon: {
     fontSize: 24,
-    fontWeight: 'bold',
-    color: '#6B4226',
-  },
-  percentageLabel: {
-    fontSize: 12,
-    color: '#999',
-  },
-  // Estilos de Clima
-  weatherContainer: {
-    gap: 16,
-  },
-  temperatureSection: {
-    alignItems: 'center',
-    paddingVertical: 12,
-  },
-  temperature: {
-    fontSize: 48,
-    fontWeight: 'bold',
-    color: '#6B4226',
-  },
-  weatherCondition: {
-    fontSize: 16,
-    color: '#666',
-    marginTop: 4,
-  },
-  weatherDetails: {
-    gap: 12,
-  },
-  weatherDetailRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 6,
-  },
-  weatherDetailLabel: {
-    fontSize: 15,
-    color: '#666',
-  },
-  weatherDetailValue: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#333',
-  },
-  // Estilos de Estatísticas
-  statsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'center',
-    paddingVertical: 8,
-  },
-  statItem: {
-    alignItems: 'center',
-    flex: 1,
-  },
-  statValue: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#6B4226',
-    marginBottom: 4,
+    marginBottom: spacing.xs,
   },
   statLabel: {
-    fontSize: 14,
-    color: '#999',
+    fontSize: 12,
+    color: colors.text.inverse,
+    opacity: 0.9,
+    marginBottom: spacing.xs,
+    textAlign: 'center',
   },
-  statDivider: {
+  statValue: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: colors.text.inverse,
+  },
+  card: {
+    marginHorizontal: spacing.lg,
+    marginBottom: spacing.base,
+  },
+  financialGrid: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  financialItem: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: spacing.md,
+  },
+  financialDivider: {
     width: 1,
-    height: 40,
-    backgroundColor: '#e0e0e0',
+    height: 60,
+    backgroundColor: colors.neutral.medium,
+  },
+  financialLabel: {
+    fontSize: 13,
+    color: colors.text.secondary,
+    marginBottom: spacing.xs,
+  },
+  financialValue: {
+    fontSize: 20,
+    fontWeight: '700',
+  },
+  productionRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+  },
+  productionItem: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  productionIcon: {
+    fontSize: 32,
+    marginBottom: spacing.xs,
+  },
+  productionValue: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: colors.text.primary,
+    marginBottom: 2,
+  },
+  productionLabel: {
+    fontSize: 11,
+    color: colors.text.secondary,
+    textAlign: 'center',
+  },
+  weatherLoading: {
+    textAlign: 'center',
+    color: colors.text.secondary,
+    paddingVertical: spacing.lg,
+  },
+  weatherError: {
+    textAlign: 'center',
+    color: colors.text.secondary,
+    paddingVertical: spacing.lg,
+  },
+  weatherGrid: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+  },
+  weatherItem: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  weatherIcon: {
+    fontSize: 28,
+    marginBottom: spacing.sm,
+  },
+  weatherValue: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.text.primary,
+  },
+  weatherLabel: {
+    fontSize: 12,
+    color: colors.text.secondary,
+    marginTop: 2,
+  },
+  propertyStats: {
+    gap: spacing.md,
+  },
+  propertyStatItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+  },
+  propertyStatIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: `${colors.primary.light}15`,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  propertyStatEmoji: {
+    fontSize: 24,
+  },
+  propertyStatContent: {
+    flex: 1,
+  },
+  propertyStatValue: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: colors.primary.main,
+  },
+  propertyStatLabel: {
+    fontSize: 13,
+    color: colors.text.secondary,
+    marginTop: 2,
+  },
+  footnote: {
+    fontSize: 11,
+    color: colors.text.hint,
+    textAlign: 'center',
+    marginTop: spacing.md,
+    fontStyle: 'italic',
   },
 })

@@ -1,4 +1,6 @@
 import { BottomTabScreenProps } from '@react-navigation/bottom-tabs'
+import { CompositeScreenProps } from '@react-navigation/native'
+import { NativeStackScreenProps } from '@react-navigation/native-stack'
 import React from 'react'
 import {
   ActivityIndicator,
@@ -11,17 +13,35 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { EmptyState, ErrorState } from '../../components'
 import { useAuth } from '../../contexts/AuthContext'
+import { useProperty } from '../../contexts/PropertyContext'
 import { useProfile } from '../../hooks'
-import { PropertyTabsParamList } from '../../types/navigation'
+import {
+  PropertyStackParamList,
+  PropertyTabsParamList,
+} from '../../types/navigation'
 
-type Props = BottomTabScreenProps<PropertyTabsParamList, 'Profile'>
+type Props = CompositeScreenProps<
+  BottomTabScreenProps<PropertyTabsParamList, 'Profile'>,
+  NativeStackScreenProps<PropertyStackParamList>
+>
 
 export function ProfileScreen({ navigation }: Props) {
   const { user, logout } = useAuth()
+  const { setSelectedProperty } = useProperty()
   const { data: profile, isLoading, error, refetch } = useProfile(user?.id)
 
   const handleLogout = () => {
     logout()
+  }
+
+  const handleChangeProperty = () => {
+    // Limpa a propriedade selecionada e reseta a navegação
+    setSelectedProperty(null)
+    // Usar reset para garantir que volta para SelectProperty sem cache
+    navigation.getParent()?.reset({
+      index: 0,
+      routes: [{ name: 'SelectProperty' }],
+    })
   }
 
   const getInitials = (name: string) => {
@@ -57,7 +77,10 @@ export function ProfileScreen({ navigation }: Props) {
   if (!profile) {
     return (
       <SafeAreaView style={styles.container}>
-        <EmptyState message="Perfil não encontrado" />
+        <EmptyState
+          title="Perfil não encontrado"
+          description="O perfil do usuario não foi encontrado"
+        />
       </SafeAreaView>
     )
   }
@@ -156,6 +179,14 @@ export function ProfileScreen({ navigation }: Props) {
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>⚙️ Configurações</Text>
+
+          <TouchableOpacity
+            style={styles.settingButton}
+            onPress={handleChangeProperty}
+          >
+            <Text style={styles.settingButtonText}>Trocar Propriedade</Text>
+            <Text style={styles.settingButtonIcon}>›</Text>
+          </TouchableOpacity>
 
           <TouchableOpacity style={styles.settingButton}>
             <Text style={styles.settingButtonText}>Editar Perfil</Text>

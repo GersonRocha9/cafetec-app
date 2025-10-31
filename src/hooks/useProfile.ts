@@ -26,7 +26,7 @@ export const useUpdateProfile = () => {
       userId: string
       updates: ProfileUpdate
     }) => profileService.updateProfile(userId, updates),
-    onSuccess: (data) => {
+    onSuccess: data => {
       queryClient.invalidateQueries({
         queryKey: queryKeys.profiles.detail(data.id),
       })

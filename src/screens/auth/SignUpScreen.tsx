@@ -3,7 +3,6 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack'
 import React, { useState } from 'react'
 import { Controller, useForm } from 'react-hook-form'
 import {
-  Alert,
   ScrollView,
   StyleSheet,
   Switch,
@@ -11,11 +10,15 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  KeyboardAvoidingView,
+  Platform,
+  ActivityIndicator,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { z } from 'zod'
 import { useAuth } from '../../contexts/AuthContext'
 import { AuthStackParamList } from '../../types/navigation'
+import { colors, spacing, borderRadius, shadows } from '../../constants/theme'
 
 // Schema de validação completo
 const signUpSchema = z
@@ -63,7 +66,7 @@ const signUpSchema = z
       .min(1, 'Área obrigatória'),
     hasInternet: z.boolean(),
   })
-  .refine((data) => data.password === data.confirmPassword, {
+  .refine(data => data.password === data.confirmPassword, {
     message: 'As senhas não coincidem',
     path: ['confirmPassword'],
   })
@@ -89,7 +92,6 @@ export function SignUpScreen({ navigation }: Props) {
     control,
     handleSubmit,
     formState: { errors, isSubmitting },
-    watch,
     setValue,
     trigger,
   } = useForm<SignUpFormData>({
@@ -163,7 +165,6 @@ export function SignUpScreen({ navigation }: Props) {
 
   const onSubmit = async (data: SignUpFormData) => {
     try {
-      // Prepare profile data
       const profileData = {
         name: data.name,
         phone: data.phone,
@@ -180,23 +181,85 @@ export function SignUpScreen({ navigation }: Props) {
       }
 
       await signUp(data.email, data.password, profileData)
-      // Navigation is handled automatically by RootNavigator when isAuthenticated changes
-      // Success alert is shown in AuthContext
     } catch (error) {
-      // Error is already handled in AuthContext with Alert
       console.error('Sign up error:', error)
     }
   }
 
+  const renderInput = (
+    name: keyof SignUpFormData,
+    label: string,
+    placeholder: string,
+    icon: string,
+    options?: {
+      keyboardType?: any
+      autoCapitalize?: any
+      secureTextEntry?: boolean
+      onChangeText?: (text: string) => void
+    }
+  ) => (
+    <View style={styles.inputContainer}>
+      <Text style={styles.label}>{label}</Text>
+      <Controller
+        control={control}
+        name={name}
+        render={({ field: { onChange, onBlur, value } }) => (
+          <View>
+            <View
+              style={[
+                styles.inputWrapper,
+                errors[name] && styles.inputWrapperError,
+              ]}
+            >
+              <Text style={styles.inputIcon}>{icon}</Text>
+              <TextInput
+                style={styles.input}
+                placeholder={placeholder}
+                placeholderTextColor={colors.text.hint}
+                value={value as string}
+                onChangeText={options?.onChangeText || onChange}
+                onBlur={onBlur}
+                keyboardType={options?.keyboardType}
+                autoCapitalize={options?.autoCapitalize || 'none'}
+                secureTextEntry={options?.secureTextEntry}
+                editable={!isSubmitting}
+              />
+            </View>
+            {errors[name] && (
+              <View style={styles.errorContainer}>
+                <Text style={styles.errorIcon}>⚠️</Text>
+                <Text style={styles.errorText}>
+                  {errors[name]?.message as string}
+                </Text>
+              </View>
+            )}
+          </View>
+        )}
+      />
+    </View>
+  )
+
   const renderProgressBar = () => (
     <View style={styles.progressContainer}>
-      <View style={styles.progressBar}>
-        <View
-          style={[
-            styles.progressFill,
-            { width: `${(currentStep / 3) * 100}%` },
-          ]}
-        />
+      <View style={styles.progressSteps}>
+        {[1, 2, 3].map(step => (
+          <View
+            key={step}
+            style={[
+              styles.progressStep,
+              step <= currentStep && styles.progressStepActive,
+            ]}
+          >
+            <Text
+              style={[
+                styles.progressStepText,
+                step <= currentStep && styles.progressStepTextActive,
+              ]}
+            >
+              {step}
+            </Text>
+          </View>
+        ))}
       </View>
       <Text style={styles.progressText}>Etapa {currentStep} de 3</Text>
     </View>
@@ -204,388 +267,167 @@ export function SignUpScreen({ navigation }: Props) {
 
   const renderStep1 = () => (
     <View style={styles.stepContainer}>
-      <Text style={styles.stepTitle}>📝 Dados Pessoais</Text>
-      <Text style={styles.stepSubtitle}>
-        Vamos começar com suas informações básicas
-      </Text>
-
-      <View style={styles.inputContainer}>
-        <Text style={styles.label}>Nome Completo *</Text>
-        <Controller
-          control={control}
-          name="name"
-          render={({ field: { onChange, onBlur, value } }) => (
-            <TextInput
-              style={[styles.input, errors.name && styles.inputError]}
-              placeholder="Digite seu nome completo"
-              value={value}
-              onChangeText={onChange}
-              onBlur={onBlur}
-              editable={!isSubmitting}
-            />
-          )}
-        />
-        {errors.name && (
-          <Text style={styles.errorText}>{errors.name.message}</Text>
-        )}
+      <View style={styles.stepHeader}>
+        <Text style={styles.stepIcon}>👤</Text>
+        <View>
+          <Text style={styles.stepTitle}>Dados Pessoais</Text>
+          <Text style={styles.stepSubtitle}>Suas informações básicas</Text>
+        </View>
       </View>
 
-      <View style={styles.inputContainer}>
-        <Text style={styles.label}>Telefone *</Text>
-        <Controller
-          control={control}
-          name="phone"
-          render={({ field: { onChange, onBlur, value } }) => (
-            <TextInput
-              style={[styles.input, errors.phone && styles.inputError]}
-              placeholder="(00) 00000-0000"
-              value={value}
-              onChangeText={onChange}
-              onBlur={onBlur}
-              keyboardType="phone-pad"
-              editable={!isSubmitting}
-            />
-          )}
-        />
-        {errors.phone && (
-          <Text style={styles.errorText}>{errors.phone.message}</Text>
-        )}
-      </View>
-
-      <View style={styles.inputContainer}>
-        <Text style={styles.label}>E-mail *</Text>
-        <Controller
-          control={control}
-          name="email"
-          render={({ field: { onChange, onBlur, value } }) => (
-            <TextInput
-              style={[styles.input, errors.email && styles.inputError]}
-              placeholder="seu@email.com"
-              value={value}
-              onChangeText={onChange}
-              onBlur={onBlur}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              editable={!isSubmitting}
-            />
-          )}
-        />
-        {errors.email && (
-          <Text style={styles.errorText}>{errors.email.message}</Text>
-        )}
-      </View>
-
-      <View style={styles.inputContainer}>
-        <Text style={styles.label}>Senha *</Text>
-        <Controller
-          control={control}
-          name="password"
-          render={({ field: { onChange, onBlur, value } }) => (
-            <TextInput
-              style={[styles.input, errors.password && styles.inputError]}
-              placeholder="Mínimo 6 caracteres"
-              value={value}
-              onChangeText={onChange}
-              onBlur={onBlur}
-              // secureTextEntry
-              editable={!isSubmitting}
-            />
-          )}
-        />
-        {errors.password && (
-          <Text style={styles.errorText}>{errors.password.message}</Text>
-        )}
-      </View>
-
-      <View style={styles.inputContainer}>
-        <Text style={styles.label}>Confirmar Senha *</Text>
-        <Controller
-          control={control}
-          name="confirmPassword"
-          render={({ field: { onChange, onBlur, value } }) => (
-            <TextInput
-              style={[
-                styles.input,
-                errors.confirmPassword && styles.inputError,
-              ]}
-              placeholder="Digite a senha novamente"
-              value={value}
-              onChangeText={onChange}
-              onBlur={onBlur}
-              // secureTextEntry
-              editable={!isSubmitting}
-            />
-          )}
-        />
-        {errors.confirmPassword && (
-          <Text style={styles.errorText}>{errors.confirmPassword.message}</Text>
-        )}
-      </View>
+      {renderInput('name', 'Nome Completo *', 'Digite seu nome', '👤', {
+        autoCapitalize: 'words',
+      })}
+      {renderInput('phone', 'Telefone *', '(00) 00000-0000', '📱', {
+        keyboardType: 'phone-pad',
+      })}
+      {renderInput('email', 'E-mail *', 'seu@email.com', '📧', {
+        keyboardType: 'email-address',
+      })}
+      {renderInput('password', 'Senha *', 'Mínimo 6 caracteres', '🔒', {
+        secureTextEntry: true,
+      })}
+      {renderInput(
+        'confirmPassword',
+        'Confirmar Senha *',
+        'Digite a senha novamente',
+        '🔒',
+        {
+          secureTextEntry: true,
+        }
+      )}
     </View>
   )
 
   const renderStep2 = () => (
     <View style={styles.stepContainer}>
-      <Text style={styles.stepTitle}>📍 Endereço</Text>
-      <Text style={styles.stepSubtitle}>Onde fica sua propriedade?</Text>
-
-      <View style={styles.inputContainer}>
-        <Text style={styles.label}>CEP *</Text>
-        <Controller
-          control={control}
-          name="cep"
-          render={({ field: { onChange, onBlur, value } }) => (
-            <TextInput
-              style={[styles.input, errors.cep && styles.inputError]}
-              placeholder="00000-000"
-              value={value}
-              onChangeText={(text) => {
-                onChange(text)
-                if (text.replace(/\D/g, '').length === 8) {
-                  searchCEP(text)
-                }
-              }}
-              onBlur={onBlur}
-              keyboardType="numeric"
-              editable={!isSubmitting}
-            />
-          )}
-        />
-        {errors.cep && (
-          <Text style={styles.errorText}>{errors.cep.message}</Text>
-        )}
+      <View style={styles.stepHeader}>
+        <Text style={styles.stepIcon}>📍</Text>
+        <View>
+          <Text style={styles.stepTitle}>Endereço</Text>
+          <Text style={styles.stepSubtitle}>Localização da propriedade</Text>
+        </View>
       </View>
 
-      <View style={styles.inputContainer}>
-        <Text style={styles.label}>Rua *</Text>
-        <Controller
-          control={control}
-          name="street"
-          render={({ field: { onChange, onBlur, value } }) => (
-            <TextInput
-              style={[styles.input, errors.street && styles.inputError]}
-              placeholder="Nome da rua"
-              value={value}
-              onChangeText={onChange}
-              onBlur={onBlur}
-              editable={!isSubmitting}
-            />
-          )}
-        />
-        {errors.street && (
-          <Text style={styles.errorText}>{errors.street.message}</Text>
-        )}
-      </View>
+      {renderInput('cep', 'CEP *', '00000-000', '📮', {
+        keyboardType: 'numeric',
+        onChangeText: text => {
+          setValue('cep', text)
+          if (text.replace(/\D/g, '').length === 8) {
+            searchCEP(text)
+          }
+        },
+      })}
+      {renderInput('street', 'Rua *', 'Nome da rua', '🏠')}
 
       <View style={styles.row}>
-        <View style={[styles.inputContainer, styles.inputSmall]}>
-          <Text style={styles.label}>Número *</Text>
-          <Controller
-            control={control}
-            name="number"
-            render={({ field: { onChange, onBlur, value } }) => (
-              <TextInput
-                style={[styles.input, errors.number && styles.inputError]}
-                placeholder="123"
-                value={value}
-                onChangeText={onChange}
-                onBlur={onBlur}
-                keyboardType="numeric"
-                editable={!isSubmitting}
-              />
-            )}
-          />
-          {errors.number && (
-            <Text style={styles.errorText}>{errors.number.message}</Text>
-          )}
+        <View style={styles.halfInput}>
+          {renderInput('number', 'Número *', '123', '🔢', {
+            keyboardType: 'numeric',
+          })}
         </View>
-
-        <View style={[styles.inputContainer, styles.inputLarge]}>
-          <Text style={styles.label}>Complemento</Text>
-          <Controller
-            control={control}
-            name="complement"
-            render={({ field: { onChange, onBlur, value } }) => (
-              <TextInput
-                style={styles.input}
-                placeholder="Apto, bloco..."
-                value={value}
-                onChangeText={onChange}
-                onBlur={onBlur}
-                editable={!isSubmitting}
-              />
-            )}
-          />
+        <View style={styles.halfInput}>
+          {renderInput('state', 'UF *', 'SP', '🗺️')}
         </View>
       </View>
 
-      <View style={styles.row}>
-        <View style={[styles.inputContainer, styles.inputSmall]}>
-          <Text style={styles.label}>UF *</Text>
-          <Controller
-            control={control}
-            name="state"
-            render={({ field: { onChange, onBlur, value } }) => (
-              <TextInput
-                style={[styles.input, errors.state && styles.inputError]}
-                placeholder="SP"
-                value={value}
-                onChangeText={onChange}
-                onBlur={onBlur}
-                maxLength={2}
-                autoCapitalize="characters"
-                editable={!isSubmitting}
-              />
-            )}
-          />
-          {errors.state && (
-            <Text style={styles.errorText}>{errors.state.message}</Text>
-          )}
-        </View>
-
-        <View style={[styles.inputContainer, styles.inputLarge]}>
-          <Text style={styles.label}>Cidade *</Text>
-          <Controller
-            control={control}
-            name="city"
-            render={({ field: { onChange, onBlur, value } }) => (
-              <TextInput
-                style={[styles.input, errors.city && styles.inputError]}
-                placeholder="Nome da cidade"
-                value={value}
-                onChangeText={onChange}
-                onBlur={onBlur}
-                editable={!isSubmitting}
-              />
-            )}
-          />
-          {errors.city && (
-            <Text style={styles.errorText}>{errors.city.message}</Text>
-          )}
-        </View>
-      </View>
+      {renderInput('city', 'Cidade *', 'Nome da cidade', '🏙️')}
+      {renderInput('complement', 'Complemento', 'Apartamento, bloco', '📝')}
     </View>
   )
 
   const renderStep3 = () => (
     <View style={styles.stepContainer}>
-      <Text style={styles.stepTitle}>👨‍🌾 Perfil do Produtor</Text>
-      <Text style={styles.stepSubtitle}>Conte-nos sobre sua produção</Text>
+      <View style={styles.stepHeader}>
+        <Text style={styles.stepIcon}>👨‍🌾</Text>
+        <View>
+          <Text style={styles.stepTitle}>Perfil de Produtor</Text>
+          <Text style={styles.stepSubtitle}>Informações da produção</Text>
+        </View>
+      </View>
 
       <View style={styles.inputContainer}>
-        <Text style={styles.label}>Perfil de Produtor *</Text>
-        <Controller
-          control={control}
-          name="producerProfile"
-          render={({ field: { onChange, value } }) => (
-            <>
-              <TouchableOpacity
-                style={[
-                  styles.input,
-                  styles.dropdown,
-                  errors.producerProfile && styles.inputError,
-                ]}
-                onPress={() => setShowProfileDropdown(!showProfileDropdown)}
-                disabled={isSubmitting}
+        <Text style={styles.label}>Tipo de Produtor *</Text>
+        <TouchableOpacity
+          style={styles.selectButton}
+          onPress={() => setShowProfileDropdown(!showProfileDropdown)}
+        >
+          <Text style={styles.inputIcon}>👨‍🌾</Text>
+          <Controller
+            control={control}
+            name="producerProfile"
+            render={({ field: { value } }) => (
+              <Text
+                style={[styles.selectText, !value && styles.selectPlaceholder]}
               >
-                <Text
-                  style={
-                    value ? styles.dropdownText : styles.dropdownPlaceholder
-                  }
-                >
-                  {value || 'Selecione seu perfil'}
-                </Text>
-                <Text style={styles.dropdownIcon}>
-                  {showProfileDropdown ? '▲' : '▼'}
-                </Text>
+                {value || 'Selecione seu perfil'}
+              </Text>
+            )}
+          />
+          <Text style={styles.selectArrow}>
+            {showProfileDropdown ? '▲' : '▼'}
+          </Text>
+        </TouchableOpacity>
+
+        {showProfileDropdown && (
+          <View style={styles.dropdown}>
+            {PRODUCER_PROFILES.map(profile => (
+              <TouchableOpacity
+                key={profile}
+                style={styles.dropdownItem}
+                onPress={() => {
+                  setValue('producerProfile', profile)
+                  setShowProfileDropdown(false)
+                }}
+              >
+                <Text style={styles.dropdownText}>{profile}</Text>
               </TouchableOpacity>
-              {showProfileDropdown && (
-                <View style={styles.dropdownList}>
-                  {PRODUCER_PROFILES.map((profile) => (
-                    <TouchableOpacity
-                      key={profile}
-                      style={styles.dropdownItem}
-                      onPress={() => {
-                        onChange(profile)
-                        setShowProfileDropdown(false)
-                      }}
-                    >
-                      <Text style={styles.dropdownItemText}>{profile}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              )}
-            </>
-          )}
-        />
+            ))}
+          </View>
+        )}
+
         {errors.producerProfile && (
-          <Text style={styles.errorText}>{errors.producerProfile.message}</Text>
+          <View style={styles.errorContainer}>
+            <Text style={styles.errorIcon}>⚠️</Text>
+            <Text style={styles.errorText}>
+              {errors.producerProfile.message}
+            </Text>
+          </View>
         )}
       </View>
 
-      <View style={styles.inputContainer}>
-        <Text style={styles.label}>Atividade Agrícola Principal *</Text>
-        <Controller
-          control={control}
-          name="mainActivity"
-          render={({ field: { onChange, onBlur, value } }) => (
-            <TextInput
-              style={[styles.input, errors.mainActivity && styles.inputError]}
-              placeholder="Ex: Cultivo de Café"
-              value={value}
-              onChangeText={onChange}
-              onBlur={onBlur}
-              editable={!isSubmitting}
-            />
-          )}
-        />
-        {errors.mainActivity && (
-          <Text style={styles.errorText}>{errors.mainActivity.message}</Text>
-        )}
-      </View>
-
-      <View style={styles.inputContainer}>
-        <Text style={styles.label}>Área de Cultivo (hectares) *</Text>
-        <Controller
-          control={control}
-          name="cultivationArea"
-          render={({ field: { onChange, onBlur, value } }) => (
-            <TextInput
-              style={[
-                styles.input,
-                errors.cultivationArea && styles.inputError,
-              ]}
-              placeholder="Ex: 50"
-              value={value}
-              onChangeText={onChange}
-              onBlur={onBlur}
-              keyboardType="decimal-pad"
-              editable={!isSubmitting}
-            />
-          )}
-        />
-        {errors.cultivationArea && (
-          <Text style={styles.errorText}>{errors.cultivationArea.message}</Text>
-        )}
-      </View>
+      {renderInput(
+        'mainActivity',
+        'Atividade Principal *',
+        'Ex: Cafeicultura',
+        '🌱'
+      )}
+      {renderInput('cultivationArea', 'Área de Cultivo (ha) *', '0.0', '📏', {
+        keyboardType: 'decimal-pad',
+      })}
 
       <View style={styles.switchContainer}>
-        <View style={styles.switchLabel}>
-          <Text style={styles.label}>Tem acesso à internet diariamente?</Text>
-          <Text style={styles.switchHint}>
-            Isso nos ajuda a melhorar sua experiência
-          </Text>
+        <View style={styles.switchLabelContainer}>
+          <Text style={styles.switchIcon}>📶</Text>
+          <View>
+            <Text style={styles.switchLabel}>Acesso à Internet</Text>
+            <Text style={styles.switchSubtext}>
+              Acesso diário à internet na propriedade
+            </Text>
+          </View>
         </View>
         <Controller
           control={control}
           name="hasInternet"
-          render={({ field: { onChange, value } }) => (
+          render={({ field: { value, onChange } }) => (
             <Switch
               value={value}
               onValueChange={onChange}
-              trackColor={{ false: '#ddd', true: '#6B4226' }}
-              thumbColor="#fff"
-              disabled={isSubmitting}
+              trackColor={{
+                false: colors.neutral.dark,
+                true: colors.success,
+              }}
+              thumbColor={colors.background.secondary}
             />
           )}
         />
@@ -595,65 +437,89 @@ export function SignUpScreen({ navigation }: Props) {
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        <View style={styles.header}>
-          <Text style={styles.title}>Cafetec</Text>
-          <Text style={styles.headerSubtitle}>Cadastro de Produtor</Text>
-        </View>
-
-        {renderProgressBar()}
-
-        {currentStep === 1 && renderStep1()}
-        {currentStep === 2 && renderStep2()}
-        {currentStep === 3 && renderStep3()}
-
-        <View style={styles.buttonContainer}>
-          {currentStep > 1 && (
-            <TouchableOpacity
-              style={[styles.button, styles.buttonSecondary]}
-              onPress={handleBack}
-              disabled={isSubmitting}
-            >
-              <Text style={styles.buttonSecondaryText}>Voltar</Text>
-            </TouchableOpacity>
-          )}
-
-          {currentStep < 3 ? (
-            <TouchableOpacity
-              style={[
-                styles.button,
-                styles.buttonPrimary,
-                currentStep === 1 && styles.buttonFull,
-              ]}
-              onPress={handleNext}
-            >
-              <Text style={styles.buttonPrimaryText}>Próximo</Text>
-            </TouchableOpacity>
-          ) : (
-            <TouchableOpacity
-              style={[
-                styles.button,
-                styles.buttonPrimary,
-                isSubmitting && styles.buttonDisabled,
-              ]}
-              onPress={handleSubmit(onSubmit)}
-              disabled={isSubmitting}
-            >
-              <Text style={styles.buttonPrimaryText}>
-                {isSubmitting ? 'Cadastrando...' : 'Finalizar Cadastro'}
-              </Text>
-            </TouchableOpacity>
-          )}
-        </View>
-
-        <TouchableOpacity
-          style={styles.linkButton}
-          onPress={() => navigation.navigate('Login')}
-          disabled={isSubmitting}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.keyboardView}
+      >
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
         >
-          <Text style={styles.linkText}>Já tem uma conta? Entrar</Text>
-        </TouchableOpacity>
-      </ScrollView>
+          {/* Header */}
+          <View style={styles.header}>
+            <TouchableOpacity
+              style={styles.backButton}
+              onPress={() =>
+                currentStep === 1 ? navigation.goBack() : handleBack()
+              }
+            >
+              <Text style={styles.backIcon}>←</Text>
+            </TouchableOpacity>
+            <View style={styles.logoContainer}>
+              <Text style={styles.logoIcon}>☕</Text>
+            </View>
+            <Text style={styles.title}>Criar Conta</Text>
+          </View>
+
+          {/* Progress Bar */}
+          {renderProgressBar()}
+
+          {/* Steps */}
+          <View style={styles.card}>
+            {currentStep === 1 && renderStep1()}
+            {currentStep === 2 && renderStep2()}
+            {currentStep === 3 && renderStep3()}
+          </View>
+
+          {/* Navigation Buttons */}
+          <View style={styles.navigationButtons}>
+            {currentStep < 3 ? (
+              <TouchableOpacity
+                style={[styles.nextButton, shadows.base]}
+                onPress={handleNext}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.nextButtonText}>Continuar</Text>
+                <Text style={styles.nextButtonIcon}>→</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                style={[
+                  styles.submitButton,
+                  isSubmitting && styles.buttonDisabled,
+                  shadows.base,
+                ]}
+                onPress={handleSubmit(onSubmit)}
+                disabled={isSubmitting}
+                activeOpacity={0.8}
+              >
+                {isSubmitting ? (
+                  <ActivityIndicator color={colors.text.inverse} size="small" />
+                ) : (
+                  <>
+                    <Text style={styles.submitButtonText}>
+                      Criar Minha Conta
+                    </Text>
+                    <Text style={styles.submitButtonIcon}>✓</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {/* Footer */}
+          <View style={styles.footer}>
+            <Text style={styles.footerText}>Já tem uma conta?</Text>
+            <TouchableOpacity
+              onPress={() => navigation.navigate('Login')}
+              disabled={isSubmitting}
+            >
+              <Text style={styles.footerLink}>Fazer login</Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   )
 }
@@ -661,198 +527,297 @@ export function SignUpScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f9f9f9',
+    backgroundColor: colors.background.primary,
+  },
+  keyboardView: {
+    flex: 1,
   },
   scrollContent: {
     flexGrow: 1,
-    paddingBottom: 30,
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing['2xl'],
   },
   header: {
-    backgroundColor: '#6B4226',
-    padding: 30,
-    paddingBottom: 40,
     alignItems: 'center',
+    paddingTop: spacing.md,
+    marginBottom: spacing.lg,
+    position: 'relative',
+  },
+  backButton: {
+    position: 'absolute',
+    left: 0,
+    top: spacing.md,
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 20,
+    backgroundColor: colors.background.secondary,
+    ...shadows.sm,
+  },
+  backIcon: {
+    fontSize: 24,
+    color: colors.text.primary,
+  },
+  logoContainer: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: colors.primary.main,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: spacing.sm,
+    ...shadows.base,
+  },
+  logoIcon: {
+    fontSize: 30,
   },
   title: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: '#fff',
-    marginBottom: 8,
-  },
-  headerSubtitle: {
-    fontSize: 16,
-    color: '#f5f5f5',
+    fontSize: 24,
+    fontWeight: '700',
+    color: colors.primary.main,
   },
   progressContainer: {
-    padding: 20,
-    paddingBottom: 10,
+    marginBottom: spacing.lg,
   },
-  progressBar: {
-    height: 6,
-    backgroundColor: '#e0e0e0',
-    borderRadius: 3,
-    overflow: 'hidden',
-    marginBottom: 8,
+  progressSteps: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: spacing.md,
+    marginBottom: spacing.sm,
   },
-  progressFill: {
-    height: '100%',
-    backgroundColor: '#6B4226',
-    borderRadius: 3,
+  progressStep: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.neutral.light,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  progressStepActive: {
+    backgroundColor: colors.primary.main,
+  },
+  progressStepText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.text.hint,
+  },
+  progressStepTextActive: {
+    color: colors.text.inverse,
   },
   progressText: {
     fontSize: 12,
-    color: '#666',
+    color: colors.text.secondary,
     textAlign: 'center',
   },
+  card: {
+    backgroundColor: colors.background.secondary,
+    borderRadius: borderRadius.lg,
+    padding: spacing.lg,
+    marginBottom: spacing.base,
+    ...shadows.md,
+  },
   stepContainer: {
-    padding: 20,
+    gap: spacing.sm,
+  },
+  stepHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    marginBottom: spacing.base,
+    paddingBottom: spacing.base,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.neutral.light,
+  },
+  stepIcon: {
+    fontSize: 32,
   },
   stepTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 8,
+    fontSize: 20,
+    fontWeight: '700',
+    color: colors.text.primary,
   },
   stepSubtitle: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 24,
+    fontSize: 13,
+    color: colors.text.secondary,
   },
   inputContainer: {
-    marginBottom: 16,
+    marginBottom: spacing.sm,
   },
   label: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#333',
-    marginBottom: 8,
+    color: colors.text.primary,
+    marginBottom: spacing.xs,
+  },
+  inputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.background.tertiary,
+    borderRadius: borderRadius.base,
+    borderWidth: 1.5,
+    borderColor: colors.neutral.medium,
+    paddingHorizontal: spacing.md,
+    height: 50,
+  },
+  inputWrapperError: {
+    borderColor: colors.error,
+  },
+  inputIcon: {
+    fontSize: 18,
+    marginRight: spacing.sm,
   },
   input: {
-    height: 50,
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    paddingHorizontal: 15,
-    fontSize: 16,
-    backgroundColor: '#fff',
+    flex: 1,
+    fontSize: 15,
+    color: colors.text.primary,
   },
-  inputError: {
-    borderColor: '#DC2626',
+  errorContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: spacing.xs,
+    paddingHorizontal: spacing.xs,
+  },
+  errorIcon: {
+    fontSize: 12,
+    marginRight: 4,
   },
   errorText: {
-    color: '#DC2626',
-    fontSize: 12,
-    marginTop: 5,
-    marginLeft: 5,
+    color: colors.error,
+    fontSize: 11,
+    fontWeight: '500',
   },
   row: {
     flexDirection: 'row',
-    gap: 12,
+    gap: spacing.md,
   },
-  inputSmall: {
+  halfInput: {
     flex: 1,
   },
-  inputLarge: {
-    flex: 2,
+  selectButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.background.tertiary,
+    borderRadius: borderRadius.base,
+    borderWidth: 1.5,
+    borderColor: colors.neutral.medium,
+    paddingHorizontal: spacing.md,
+    height: 50,
+  },
+  selectText: {
+    flex: 1,
+    fontSize: 15,
+    color: colors.text.primary,
+  },
+  selectPlaceholder: {
+    color: colors.text.hint,
+  },
+  selectArrow: {
+    fontSize: 12,
+    color: colors.text.secondary,
   },
   dropdown: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  dropdownText: {
-    fontSize: 16,
-    color: '#333',
-  },
-  dropdownPlaceholder: {
-    fontSize: 16,
-    color: '#999',
-  },
-  dropdownIcon: {
-    fontSize: 12,
-    color: '#666',
-  },
-  dropdownList: {
-    backgroundColor: '#fff',
+    marginTop: spacing.xs,
+    backgroundColor: colors.background.secondary,
+    borderRadius: borderRadius.base,
     borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    marginTop: 4,
-    overflow: 'hidden',
+    borderColor: colors.neutral.medium,
+    ...shadows.base,
   },
   dropdownItem: {
-    padding: 15,
+    padding: spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    borderBottomColor: colors.neutral.light,
   },
-  dropdownItemText: {
-    fontSize: 16,
-    color: '#333',
+  dropdownText: {
+    fontSize: 15,
+    color: colors.text.primary,
   },
   switchContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#fff',
-    padding: 16,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#ddd',
-    marginBottom: 16,
+    backgroundColor: `${colors.primary.light}10`,
+    padding: spacing.base,
+    borderRadius: borderRadius.base,
+    marginTop: spacing.sm,
+  },
+  switchLabelContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    flex: 1,
+  },
+  switchIcon: {
+    fontSize: 20,
   },
   switchLabel: {
-    flex: 1,
-    marginRight: 16,
+    fontSize: 15,
+    fontWeight: '600',
+    color: colors.text.primary,
   },
-  switchHint: {
+  switchSubtext: {
     fontSize: 12,
-    color: '#999',
-    marginTop: 4,
+    color: colors.text.secondary,
   },
-  buttonContainer: {
+  navigationButtons: {
+    marginBottom: spacing.base,
+  },
+  nextButton: {
     flexDirection: 'row',
-    paddingHorizontal: 20,
-    gap: 12,
-  },
-  button: {
-    flex: 1,
-    height: 50,
-    borderRadius: 8,
+    backgroundColor: colors.primary.main,
+    borderRadius: borderRadius.base,
+    height: 52,
     justifyContent: 'center',
     alignItems: 'center',
+    gap: spacing.xs,
   },
-  buttonFull: {
-    flex: 1,
+  nextButtonText: {
+    color: colors.text.inverse,
+    fontSize: 17,
+    fontWeight: '700',
   },
-  buttonPrimary: {
-    backgroundColor: '#6B4226',
+  nextButtonIcon: {
+    color: colors.text.inverse,
+    fontSize: 20,
+    fontWeight: '700',
   },
-  buttonSecondary: {
-    backgroundColor: '#fff',
-    borderWidth: 1,
-    borderColor: '#ddd',
+  submitButton: {
+    flexDirection: 'row',
+    backgroundColor: colors.success,
+    borderRadius: borderRadius.base,
+    height: 52,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: spacing.xs,
   },
   buttonDisabled: {
-    backgroundColor: '#A0836B',
-    opacity: 0.7,
+    opacity: 0.6,
   },
-  buttonPrimaryText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
+  submitButtonText: {
+    color: colors.text.inverse,
+    fontSize: 17,
+    fontWeight: '700',
   },
-  buttonSecondaryText: {
-    color: '#666',
-    fontSize: 16,
-    fontWeight: '600',
+  submitButtonIcon: {
+    color: colors.text.inverse,
+    fontSize: 20,
+    fontWeight: '700',
   },
-  linkButton: {
-    marginTop: 20,
+  footer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
     alignItems: 'center',
+    gap: spacing.xs,
+    paddingVertical: spacing.base,
   },
-  linkText: {
-    color: '#6B4226',
+  footerText: {
     fontSize: 14,
+    color: colors.text.secondary,
+  },
+  footerLink: {
+    fontSize: 14,
+    color: colors.primary.main,
     fontWeight: '600',
   },
 })

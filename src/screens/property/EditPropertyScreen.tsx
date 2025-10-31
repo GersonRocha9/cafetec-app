@@ -288,7 +288,7 @@ export function EditPropertyScreen({ navigation, route }: Props) {
           }
         } catch (error) {
           console.error('❌ Erro ao fazer upload da imagem:', error)
-          const continueWithoutImage = await new Promise<boolean>((resolve) => {
+          const continueWithoutImage = await new Promise<boolean>(resolve => {
             Alert.alert(
               'Erro no Upload',
               'Não foi possível fazer upload da imagem. Deseja continuar sem atualizar a foto?',
@@ -471,7 +471,7 @@ export function EditPropertyScreen({ navigation, route }: Props) {
                     placeholder="00000-000"
                     value={value}
                     onChangeText={onChange}
-                    onBlur={(e) => {
+                    onBlur={e => {
                       onBlur()
                       searchCEP(value)
                     }}
@@ -593,7 +593,7 @@ export function EditPropertyScreen({ navigation, route }: Props) {
                 style={styles.map}
                 region={mapRegion}
                 provider={PROVIDER_GOOGLE}
-                onPress={(e) => {
+                onPress={e => {
                   const coords = e.nativeEvent.coordinate
                   setMarkerCoordinate(coords)
                 }}

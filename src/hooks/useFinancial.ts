@@ -53,7 +53,7 @@ export const useCreateAccount = () => {
   return useMutation({
     mutationFn: (account: AccountInsert) =>
       accountService.createAccount(account),
-    onSuccess: (data) => {
+    onSuccess: data => {
       queryClient.invalidateQueries({
         queryKey: queryKeys.accounts.byProperty(data.property_id),
       })
@@ -76,7 +76,7 @@ export const useUpdateAccount = () => {
       accountId: string
       updates: AccountUpdate
     }) => accountService.updateAccount(accountId, updates),
-    onSuccess: (data) => {
+    onSuccess: data => {
       queryClient.invalidateQueries({
         queryKey: queryKeys.accounts.byProperty(data.property_id),
       })
@@ -97,15 +97,15 @@ export const useMarkAccountAsPaid = () => {
       paidValue,
     }: {
       accountId: string
-      paidValue?: number
+      paidValue: number
     }) => {
       return accountService.updateAccount(accountId, {
         status: 'Pago',
         paid_at: new Date().toISOString(),
-        paid_value: paidValue || undefined,
+        paid_value: paidValue,
       })
     },
-    onSuccess: (data) => {
+    onSuccess: data => {
       queryClient.invalidateQueries({
         queryKey: queryKeys.accounts.byProperty(data.property_id),
       })
@@ -144,7 +144,7 @@ export const useCreateClient = () => {
 
   return useMutation({
     mutationFn: (client: ClientInsert) => clientService.createClient(client),
-    onSuccess: (data) => {
+    onSuccess: data => {
       queryClient.invalidateQueries({
         queryKey: queryKeys.clients.byProperty(data.property_id),
       })
@@ -164,7 +164,7 @@ export const useUpdateClient = () => {
       clientId: string
       updates: ClientUpdate
     }) => clientService.updateClient(clientId, updates),
-    onSuccess: (data) => {
+    onSuccess: data => {
       queryClient.invalidateQueries({
         queryKey: queryKeys.clients.detail(data.id),
       })

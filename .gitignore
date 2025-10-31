@@ -47,3 +47,6 @@ android/
 ios/
 
 .env
+
+CLAUDE.md
+.claude
